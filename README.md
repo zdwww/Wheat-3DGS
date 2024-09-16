@@ -13,6 +13,6 @@ sbatch run.sh
 
 ## Results
 <p align="center">
-  <img src="assets/FPWW036_SR0461_1_FIP2_cam_02.png" alt="Image 1" width="45%" />
-  <img src="assets/FPWW036_SR0461_1_FIP2_cam_04.png" alt="Image 2" width="45%" />
+  <img src="assets/FPWW036_SR0461_1_FIP2_cam_02.jpg" alt="Image 1" width="45%" />
+  <img src="assets/FPWW036_SR0461_1_FIP2_cam_04.jpg" alt="Image 2" width="45%" />
 </p>
