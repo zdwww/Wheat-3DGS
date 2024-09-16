@@ -6,7 +6,7 @@ from random import randint
 from utils.loss_utils import l1_loss, ssim
 from gaussian_renderer import render, network_gui
 import sys
-from scene import Scene, GaussianModel
+from scene import Scene, GaussianModel, Camera
 from utils.general_utils import safe_state
 import uuid
 from tqdm import tqdm
@@ -16,8 +16,9 @@ from arguments import ModelParams, PipelineParams, OptimizationParams
 from PIL import Image, ImageDraw
 from gaussian_renderer.render_helper import get_render_label
 import torch.nn as nn
+from typing import List
 
-########### Begin of Image Helper Functions ###########
+########### Begin of Image Helper Functions, will migrate to utils dir later ###########
 def normalize_to_0_1(img_tensor):
     # Normalize PIL loaded image tensor from 0-255 to 0-1
     if torch.max(img_tensor) > 1.0:
@@ -130,10 +131,69 @@ def calculate_seg_iou(mask1, mask2):
 
 ########### End of Image Helper Functions ###########
 
+########### Begin of Visualization Helper Functions, will migrate to utils dir later ###########
+
+def vis_image_w_overlay(img_tensor, save_dir, save_name, pred_seg, overlap_seg=None, resize_factor=1):
+    """
+    Args:
+        pred_seg: segmentation rendered from 3DGS
+        overlap_seg: seg obtained from SAM with largest IOU between pred_seg
+    """
+    image_pil = rgb_tensor_to_PIL(img_tensor)
+    mask_pil = Image.fromarray(pred_seg.astype(np.uint8) * 255)
+    image_with_overlay = overlay_img_w_mask(image_pil, mask_pil, color="red")
+    if overlap_seg is not None:
+        mask_pil = Image.fromarray(overlap_seg.astype(np.uint8) * 255)
+        image_with_overlay = overlay_img_w_mask(image_with_overlay, mask_pil, color="blue")
+    if resize_factor != 1:
+        width, height = image_with_overlay.size                
+        new_size = (width // resize_factor, height // resize_factor)
+        image_with_overlay = image_with_overlay.resize(new_size)
+    image_with_overlay.save(os.path.join(save_dir, f"{save_name}.jpg"))
+
+########### End of Visualization Helper Functions ###########
+
+def train_label_w_seg(gaussians : GaussianModel, 
+                      viewpoint_stack : List[Camera], 
+                      mask_paths : List[torch.Tensor], 
+                      opt, background, iterations=10000, enable_progress_bar=False):
+    """Helper function that wraps Gaussians label training schema into one function"""
+    assert len(viewpoint_stack) == len(mask_paths)
+    gaussians.training_setup(opt)
+    first_iter = 0
+    if enable_progress_bar:
+        progress_bar = tqdm(range(first_iter, iterations), desc="Training progress")
+    first_iter += 1
+    gaussians.update_lr_for_label(label_lr=0.001)
+    criterion = nn.BCEWithLogitsLoss()
+    
+    print(f"Start training w.r.t seg; length of viewpoints: {len(viewpoint_stack)}")
+    
+    for iteration in range(first_iter, iterations + 1):
+        random_index = random.randint(0, len(viewpoint_stack) - 1)
+        viewpoint_cam = viewpoint_stack[random_index]
+        render_label = torch.mean(get_render_label(viewpoint_cam, gaussians, background), dim=0, keepdim=True)
+        # Load binary mask
+        with Image.open(mask_paths[random_index]) as temp:
+            mask = binarize_mask(PILtoTorch(temp.copy(), viewpoint_cam.resolution).to("cuda"))
+        loss = criterion(input=render_label, target=mask)
+        loss.backward()
+        with torch.no_grad():
+            if enable_progress_bar:
+                if iteration % 10 == 0:
+                    progress_bar.set_postfix({"Loss": f"{loss.item():.{7}f}"})
+                    progress_bar.update(10)
+                if iteration == iterations:
+                    progress_bar.close()
+            ## Optimizer step
+            if iteration <= iterations:
+                gaussians.optimizer.step()
+                gaussians.optimizer.zero_grad(set_to_none = True)
+        
 def training(dataset, opt, pipe, total_iterations=10000):
     first_iter = 0
     gaussians = GaussianModel(dataset.sh_degree)
-    scene = Scene(dataset, gaussians, load_iteration=7000, shuffle=False)
+    scene = Scene(dataset, gaussians, load_iteration=30000, shuffle=False)
     gaussians.training_setup(opt)
     print(f"Loaded point cloud size: {len(gaussians.get_label)}")
 
@@ -141,184 +201,144 @@ def training(dataset, opt, pipe, total_iterations=10000):
     background = torch.tensor(bg_color, dtype=torch.float32, device="cuda")
     viewpoint_stack = scene.getTrainCameras().copy()
 
-    # Initialize a list of saved binary masks in png format
-    all_mask_paths = []
-    all_bboxes = {}
+    
+    twoD_seg_results = {} # 2D segmentation results update through the pipeline
+    os.makedirs(f"output/2DSeg", exist_ok=True)
+    all_mask_paths = [] # a list of saved binary masks in png format
     num_bboxes = 0
     for viewpoint_cam in viewpoint_stack:
-        print(viewpoint_cam.image_name)
         bboxes = torch.load(viewpoint_cam.bbox_path)
         num_bboxes += len(bboxes)
-        all_bboxes[viewpoint_cam.image_name] = bboxes
         all_mask_paths += viewpoint_cam.mask_paths
-    assert len(all_mask_paths) == num_bboxes
-    print(f"Total of {len(all_mask_paths)} masks & bounding boxes found")
-
-    processed_masks = set()
+        twoD_seg_results[viewpoint_cam.image_name] = torch.zeros(viewpoint_cam.original_image.shape[1:], dtype=torch.int)
+        torch.save(twoD_seg_results[viewpoint_cam.image_name], f"output/2DSeg/{viewpoint_cam.image_name}.pt")
     
-    for exp_id, mask_path in enumerate(all_mask_paths):
-        if os.path.basename(mask_path) in processed_masks:
-            print(f"{os.path.basename(mask_path)} already processed")
+    assert len(all_mask_paths) == num_bboxes
+    print(f"Total of {len(all_mask_paths)} mask & bounding box pairs found")
+
+    random.shuffle(all_mask_paths)
+    processed_masks = set()
+    num_wheat_head = 0
+
+    #### Iterate through all YOLO/SAM bbox/seg pairs
+    for exp_id, this_mask_path in enumerate(all_mask_paths):
+        this_mask_name = os.path.splitext(os.path.basename(this_mask_path))[0]
+        
+        if this_mask_name in processed_masks:
+            print(f"{this_mask_name} already processed and saved")
             continue
         
-        processed_masks.add(os.path.basename(mask_path))
-        print(f"Train 3D segmentation against {os.path.basename(mask_path)}")
-        this_image_name = os.path.basename(mask_path)[:-8]
-        mask_idx = int(os.path.basename(mask_path)[-7:-4])
-        this_viewpoint_cam = next(cam for cam in viewpoint_stack if cam.image_name == this_image_name)
-        print("Image size", this_viewpoint_cam.original_image.shape)
-        # Load binary mask
-        with Image.open(mask_path) as temp:
-            # print("OG size", temp.size)
-            # print("Scale", this_viewpoint_cam.resolution_scale)
-            # print("Resolution", this_viewpoint_cam.resolution)
-            mask = binarize_mask(PILtoTorch(temp.copy(), this_viewpoint_cam.resolution).to("cuda"))
-        print("Mask shape", mask.shape)
+        processed_masks.add(this_mask_name)  
+        this_image_name = this_mask_name[:-4]
+        mask_idx = int(this_mask_name[-3:])
+        print(f"Train 3D segmentation against {this_image_name}'s {mask_idx}th mask ({this_mask_name})")
         
-        #### Training ####
-        first_iter = 0
-        progress_bar = tqdm(range(first_iter, total_iterations), desc="Training progress")
-        first_iter += 1
-        gaussians.update_lr_for_label(label_lr=0.001)
-        criterion = nn.BCEWithLogitsLoss()
-
-        if exp_id == 0:
-            gaussians.load_ply(f"output/{os.path.splitext(os.path.basename(mask_path))[0]}.ply")
-            print(f"Trained Gaussians loaded for exp {exp_id}")
-        else:
-            for iteration in range(first_iter, total_iterations + 1):
-                render_label = torch.mean(get_render_label(this_viewpoint_cam, gaussians, background), dim=0, keepdim=True)
-                loss = criterion(input=render_label, target=mask)
-                loss.backward()
-                with torch.no_grad():
-                    if iteration % 10 == 0:
-                        progress_bar.set_postfix({"Loss": f"{loss.item():.{7}f}"})
-                        progress_bar.update(10)
-                    if iteration == total_iterations:
-                        progress_bar.close()
-                    ## Optimizer step
-                    if iteration <= total_iterations:
-                        gaussians.optimizer.step()
-                        gaussians.optimizer.zero_grad(set_to_none = True)
-    
-            gaussians.save_ply(f"output/{os.path.splitext(os.path.basename(mask_path))[0]}.ply")
+        this_viewpoint_cam = next(cam for cam in viewpoint_stack if cam.image_name == this_image_name)
+            
+        # Save the ground-truth target mask, for manual verification only
+        os.makedirs(f"output/{this_mask_name}", exist_ok=True)
+        with Image.open(this_mask_path) as temp:
+            this_mask = binarize_mask(PILtoTorch(temp.copy(), this_viewpoint_cam.resolution))
+        vis_image_w_overlay(img_tensor=this_viewpoint_cam.original_image, 
+                            save_dir=f"output/{this_mask_name}", 
+                            save_name=this_mask_name,
+                            pred_seg=this_mask.squeeze().numpy() > 0)
+        
+        # Train Gaussians' labels w.r.t ONE segmentation
+        train_label_w_seg(gaussians, [this_viewpoint_cam], [this_mask_path], opt, background, iterations=2000)
 
         #### Render from other cameras
+        # Initialize a list of consistent segmentation for future fine-tuning
         new_viewpoint_stack = [this_viewpoint_cam]
-        match_mask_path = [mask_path]
+        match_mask_paths = [this_mask_path]
         
         for viewpoint_cam in viewpoint_stack:
             if viewpoint_cam.image_name == this_image_name:
                 continue
             else:
                 # Go through other cameras to find match
-                print(viewpoint_cam.image_name)
-                # Save the rendered segmentation for visualization
                 render_label = torch.mean(get_render_label(viewpoint_cam, gaussians, background), dim=0, keepdim=True)
                 pred_seg = render_label.squeeze().detach().cpu().numpy() > 0.01
-                pred_bbox = get_bbox_from_mask(pred_seg)
-                print("Pred", pred_bbox)
+                pred_bbox = get_bbox_from_mask(pred_seg) # get outer bounding box of segmentation
                 # Load YOLO bounding boxes
                 bboxes = torch.load(viewpoint_cam.bbox_path) / viewpoint_cam.resolution_scale
                 # Overlap boxes xyxy, id and mIOU
                 overlap_bboxes = [tuple(box.tolist()) for box in bboxes if is_overlapping(pred_bbox, tuple(box.tolist()))]
                 overlap_idx = [i for i, box in enumerate(bboxes) if is_overlapping(pred_bbox, tuple(box.tolist()))]
                 # Infer SAM-generated segmentation from bounding boxes
-                overlap_masks_paths = [mask_path for mask_path in viewpoint_cam.mask_paths if int(os.path.basename(mask_path)[-7:-4]) in overlap_idx]
-                overlap_masks = []
-                ious = []
+                # overlap_masks_paths = [mask_path for mask_path in viewpoint_cam.mask_paths if int(os.path.basename(mask_path)[-7:-4]) in overlap_idx]
+                overlap_masks_paths = [os.path.join(os.path.dirname(this_mask_path), f"{viewpoint_cam.image_name}_{str(i).zfill(3)}.png") for i in overlap_idx]
+                for p in overlap_masks_paths:
+                    assert p in viewpoint_cam.mask_paths, f"{p} not found in current image's masks"
+
+                # Find the bbox/seg pair with largest Segmentation IOU between the rendering
+                max_iou = 0.0
+                max_overlap_mask = None
+                max_overlap_mask_path = None
                 for mask_path in overlap_masks_paths:
                     with Image.open(mask_path) as temp:
                         mask = binarize_mask(PILtoTorch(temp.copy(), this_viewpoint_cam.resolution)).squeeze().numpy() > 0
                         assert mask.shape == pred_seg.shape
-                        overlap_masks.append(mask)
-                        ious.append(calculate_seg_iou(mask, pred_seg))
+                    iou = calculate_seg_iou(mask, pred_seg)
+                    if iou > max_iou:
+                        max_iou = iou
+                        max_overlap_mask = mask
+                        max_overlap_mask_path = mask_path
                                          
-                # ious = [calculate_iou(pred_bbox, box) for box in overlap_bboxes]
-                # Find a match segmentation in other cameras
-                print(f"IOUs: {ious}")
-                match = None
-                if len(ious) != 0:
-                    max_iou = np.max(ious)
-                    if max_iou > 0.2:
-                        match = np.argmax(ious)
-                        # Add matched viewpoint cam and matched seg to a list
-                        new_viewpoint_stack.append(viewpoint_cam)
-                        match_mask_path.append(overlap_masks_paths[match])
-                        processed_masks.add(os.path.basename(overlap_masks_paths[match]))
-                        print(f"Find a mathch with IOU={max_iou} at cam {viewpoint_cam.image_name} with seg {os.path.basename(overlap_masks_paths[match])}")
-
-                #### Begin of visualization block ####
-                visualize = True
-                if visualize:
-                    mask_pil = Image.fromarray(pred_seg.astype(np.uint8) * 255)
-                    image_pil = rgb_tensor_to_PIL(viewpoint_cam.original_image)
-                    image_with_overlay = overlay_img_w_mask(image_pil, mask_pil, color="red")
-                    
-                    # for overlap_mask in overlap_masks:
-                    if match is not None:
-                        mask_pil = Image.fromarray(overlap_masks[match].astype(np.uint8) * 255)
-                        image_with_overlay = overlay_img_w_mask(image_with_overlay, mask_pil, color="blue")
-                    
-                    # Draw bounding box
-                    if pred_bbox is not None:
-                        draw = ImageDraw.Draw(image_with_overlay)
-                        draw.rectangle(pred_bbox, outline="red", width=3)
-                        # if len(overlap_bboxes) != 0:
-                        #     for i, overlap_bbox in enumerate(overlap_bboxes):
-                        #         draw.rectangle(overlap_bbox, outline="blue", width=1)
-                        
-                    image_with_overlay.save(f"output/vis/{viewpoint_cam.image_name}.png")
-                #### End of visualization block ####
+                if max_iou > 0.5: # Hyperparameters to modify
+                    # Add matched viewpoint cam and matched seg to a list
+                    new_viewpoint_stack.append(viewpoint_cam)
+                    match_mask_paths.append(max_overlap_mask_path)
+                    match_mask_name = os.path.splitext(os.path.basename(max_overlap_mask_path))[0]
+                    processed_masks.add(match_mask_name)
+                    print(f"Find a mathch with IOU={max_iou} with seg {match_mask_name}") 
+                    # Create the saved match directory only when a macth is found
+                    os.makedirs(f"output/{this_mask_name}/match", exist_ok=True)
+                    vis_image_w_overlay(img_tensor=viewpoint_cam.original_image, 
+                                        save_dir=f"output/{this_mask_name}/match", 
+                                        save_name=match_mask_name,
+                                        pred_seg=pred_seg,
+                                        overlap_seg=max_overlap_mask,
+                                        resize_factor=2
+                                       )
         
-        assert len(new_viewpoint_stack) == len(match_mask_path)
-        print(f"a total of {len(new_viewpoint_stack)} matches found")
-        
-        #### Begin of Refine training with newly found segmentation ####
-        first_iter = 0
-        progress_bar = tqdm(range(first_iter, total_iterations), desc="Refine Training")
-        first_iter += 1
-        gaussians.training_setup(opt)
-        gaussians.update_lr_for_label(label_lr=0.001)
-        criterion = nn.BCEWithLogitsLoss()
+        assert len(new_viewpoint_stack) == len(match_mask_paths)
+        print(f"Total of {len(new_viewpoint_stack)} matches with IOU > 0.5 found for refine training.")
+        # print("Set", processed_masks)
 
-        for iteration in range(first_iter, total_iterations + 1):
-            random_index = random.randint(0, len(new_viewpoint_stack) - 1)
-            viewpoint_cam = new_viewpoint_stack[random_index]
-            with Image.open(match_mask_path[random_index]) as temp:
-                mask = binarize_mask(PILtoTorch(temp.copy(), viewpoint_cam.resolution).to("cuda"))
+        if len(new_viewpoint_stack) > 1:
+            #### Only do Refine training w.r.t newly found segmentation  when at least one match is found ####
+            num_wheat_head += 1
+            print(f"Start refine training w.r.t the {num_wheat_head}th wheat head found")
+            train_label_w_seg(gaussians, new_viewpoint_stack, match_mask_paths, opt, background, iterations=7000)
             
-            render_label = torch.mean(get_render_label(viewpoint_cam, gaussians, background), dim=0, keepdim=True)
-            # gray_tensor_to_PIL(render_label).save(f"output/vis/{iteration}_render.png")
-            # gray_tensor_to_PIL(mask).save(f"output/vis/{iteration}_mask.png")
-            loss = criterion(input=render_label, target=mask)
-            loss.backward()
-            with torch.no_grad():
-                if iteration % 10 == 0:
-                    progress_bar.set_postfix({"Loss": f"{loss.item():.{7}f}"})
-                    progress_bar.update(10)
-                if iteration == total_iterations:
-                    progress_bar.close()
-                ## Optimizer step
-                if iteration <= total_iterations:
-                    gaussians.optimizer.step()
-                    gaussians.optimizer.zero_grad(set_to_none = True)
-        #### End of Refine training with newly found segmentation ####
-        gaussians.save_ply(f"output/{os.path.splitext(os.path.basename(mask_path))[0]}_refined.ply")
+            # gaussians.save_ply(f"output/{os.path.splitext(os.path.basename(mask_path))[0]}_refined.ply")
+    
+            #### Evaluation of refined training ####
+            for viewpoint_cam in viewpoint_stack:
+                with torch.no_grad():
+                    render_label = torch.mean(get_render_label(viewpoint_cam, gaussians, background), dim=0, keepdim=False).detach().cpu()
+                    pred_seg = render_label.numpy() > 0.01
+                    os.makedirs(f"output/{this_mask_name}/refine", exist_ok=True)
+                    vis_image_w_overlay(img_tensor=viewpoint_cam.original_image, 
+                                        save_dir=f"output/{this_mask_name}/refine",
+                                        save_name=viewpoint_cam.image_name,
+                                        pred_seg=pred_seg,
+                                        resize_factor=2)
+                    # Update the 2D seg&count results
+                    assert twoD_seg_results[viewpoint_cam.image_name].shape == render_label.shape
+                    twoD_seg_results[viewpoint_cam.image_name][render_label > 0.01] = num_wheat_head
+                    # Update the saved 2D seg saved
+                    torch.save(twoD_seg_results[viewpoint_cam.image_name], f"output/2DSeg/{viewpoint_cam.image_name}.pt")
+            gaussians.reset_label(set_which_object_to=num_wheat_head)
+            print(f"Num of Gaussians corresponding to each wheat head {torch.unique(gaussians.get_which_object.cpu(), return_counts=True)}")
+        else:
+            gaussians.reset_label()
 
-        #### Evaluation of refined training ####
-        for viewpoint_cam in viewpoint_stack:
-            with torch.no_grad():
-                render_label = torch.mean(get_render_label(viewpoint_cam, gaussians, background), dim=0, keepdim=True)
-                pred_seg = render_label.squeeze().detach().cpu().numpy() > 0.01
-                mask_pil = Image.fromarray(pred_seg.astype(np.uint8) * 255)
-                image_pil = rgb_tensor_to_PIL(viewpoint_cam.original_image)
-                image_with_overlay = overlay_img_w_mask(image_pil, mask_pil, color="red")
-                os.makedirs(f"output/{exp_id}", exist_ok=True)
-                image_with_overlay.save(f"output/{exp_id}/{viewpoint_cam.image_name}.png")
-        # print("Render label shape", render_label.shape)
-        gaussians.reset_label()
-        print(f"Processed masks {len(processed_masks)} / {len(all_mask_paths)}: {processed_masks}")
+        if exp_id % 5 == 0: # Save Gaussians every 5 distinct masks
+            gaussians.save_ply("output/gaussians.ply")
+            print("Gaussians saved!")
+        print(f"Processed masks {len(processed_masks)} / {len(all_mask_paths)}")
         
 if __name__ == "__main__":
     # Set up command line argument parser
