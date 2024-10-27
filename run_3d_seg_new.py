@@ -1,10 +1,14 @@
 import os
+import gc
+import csv
 import random
 import torch
+import shutil
 import numpy as np
 from random import randint
 from utils.loss_utils import l1_loss, ssim
 from gaussian_renderer import render, network_gui
+from gaussian_renderer import flashsplat_render # FlashSplat Render
 import sys
 from scene import Scene, GaussianModel, Camera
 from utils.general_utils import safe_state
@@ -16,7 +20,11 @@ from arguments import ModelParams, PipelineParams, OptimizationParams
 from PIL import Image, ImageDraw
 from gaussian_renderer.render_helper import get_render_label
 import torch.nn as nn
+import torch.nn.functional as F
 from typing import List
+from copy import deepcopy
+
+import torchvision
 
 ########### Begin of Image Helper Functions, will migrate to utils dir later ###########
 def normalize_to_0_1(img_tensor):
@@ -153,57 +161,74 @@ def vis_image_w_overlay(img_tensor, save_dir, save_name, pred_seg, overlap_seg=N
 
 ########### End of Visualization Helper Functions ###########
 
-def train_label_w_seg(gaussians : GaussianModel, 
-                      viewpoint_stack : List[Camera], 
-                      mask_paths : List[torch.Tensor], 
-                      opt, background, iterations=10000, enable_progress_bar=False):
-    """Helper function that wraps Gaussians label training schema into one function"""
+def multi_instance_opt(all_contrib, gamma=0.):
+    """
+    Input:
+    all_contrib: A_{e} with shape (obj_num, gs_num) 
+    gamma: softening factor range from [-1, 1]
+    
+    Output: 
+    all_obj_labels: results S with shape (obj_num, gs_num)
+    where S_{i,j} denotes j-th gaussian belong i-th object
+    """
+    all_contrib_sum = all_contrib.sum(dim=0)
+    all_obj_labels = torch.zeros_like(all_contrib).bool()
+    for obj_idx, obj_contrib in tqdm(enumerate(all_contrib), desc="multi-view optimize"):
+        obj_contrib = torch.stack([all_contrib_sum - obj_contrib, obj_contrib], dim=0)
+        obj_contrib = F.normalize(obj_contrib, dim=0)
+        obj_contrib[0, :] += gamma
+        obj_label = torch.argmax(obj_contrib, dim=0)
+        all_obj_labels[obj_idx] = obj_label
+    return all_obj_labels
+
+def opt_label_w_seg(gaussians : GaussianModel, 
+                    viewpoint_stack : List[Camera], 
+                    mask_paths : List[str], 
+                    pipeline, background):
+    """Helper function that wraps Gaussians label optimization schema into one function"""
     assert len(viewpoint_stack) == len(mask_paths)
-    gaussians.training_setup(opt)
-    first_iter = 0
-    if enable_progress_bar:
-        progress_bar = tqdm(range(first_iter, iterations), desc="Training progress")
-    first_iter += 1
-    gaussians.update_lr_for_label(label_lr=0.001)
-    criterion = nn.BCEWithLogitsLoss()
     
-    print(f"Start training w.r.t seg; length of viewpoints: {len(viewpoint_stack)}")
-    
-    for iteration in range(first_iter, iterations + 1):
-        random_index = random.randint(0, len(viewpoint_stack) - 1)
-        viewpoint_cam = viewpoint_stack[random_index]
-        render_label = torch.mean(get_render_label(viewpoint_cam, gaussians, background), dim=0, keepdim=True)
-        # Load binary mask
-        with Image.open(mask_paths[random_index]) as temp:
-            mask = binarize_mask(PILtoTorch(temp.copy(), viewpoint_cam.resolution).to("cuda"))
-        loss = criterion(input=render_label, target=mask)
-        loss.backward()
+    all_counts = None
+    for idx, viewpoint_cam in enumerate(viewpoint_stack):
+        with Image.open(mask_paths[idx]) as temp:
+            gt_mask = binarize_mask(PILtoTorch(temp.copy(), viewpoint_cam.resolution)).squeeze().to("cuda")
+            assert viewpoint_cam.original_image.shape[-2:] == gt_mask.shape
         with torch.no_grad():
-            if enable_progress_bar:
-                if iteration % 10 == 0:
-                    progress_bar.set_postfix({"Loss": f"{loss.item():.{7}f}"})
-                    progress_bar.update(10)
-                if iteration == iterations:
-                    progress_bar.close()
-            ## Optimizer step
-            if iteration <= iterations:
-                gaussians.optimizer.step()
-                gaussians.optimizer.zero_grad(set_to_none = True)
+            render_pkg = flashsplat_render(viewpoint_cam, gaussians, pipeline, background, gt_mask=gt_mask, obj_num=1)
+            rendering = render_pkg["render"]
+            used_count = render_pkg["used_count"]
+            if all_counts is None:
+                all_counts = torch.zeros_like(used_count)
+            all_counts += used_count
+        gc.collect()
+        torch.cuda.empty_cache()
         
-def training(dataset, opt, pipe, total_iterations=10000):
-    out_dir = "output/plot_461_seg_sugar_coarse"
+    slackness = 0.0
+    all_obj_labels = multi_instance_opt(all_counts, slackness)
+    print(f"Optimized w.r.t {len(viewpoint_stack)} viewpoints, {torch.sum(all_obj_labels, dim=1)[1]} Gaussians identified")
+    return all_obj_labels
+        
+def training(dataset, opt, pipe, load_iteration, exp_name, iou_threshold, num_match):
+    out_dir = os.path.join("/cluster/scratch/daizhang/Wheat-GS-output/WheatGS", exp_name)
     os.makedirs(out_dir, exist_ok=True)
+    results = open(os.path.join(out_dir, 'results.csv'), mode='w', newline='')
+    writer = csv.writer(results)
+    writer.writerow(["id", "init_mask", "num_matches", "mean_iou"])
     
-    first_iter = 0
     gaussians = GaussianModel(dataset.sh_degree)
-    scene = Scene(dataset, gaussians, load_iteration="sugar", shuffle=False)
+    try:
+        load_iteration = int(load_iteration)
+    except:
+        pass
+    print(f"Load iteration {load_iteration}, Resolution {dataset.resolution}")
+    scene = Scene(dataset, gaussians, load_iteration=load_iteration, shuffle=False)
     gaussians.training_setup(opt)
-    print(f"Loaded point cloud size: {len(gaussians.get_label)}")
+    print(f"Loaded point cloud size: {len(gaussians.get_xyz)}")
 
     bg_color = [1, 1, 1] if dataset.white_background else [0, 0, 0]
     background = torch.tensor(bg_color, dtype=torch.float32, device="cuda")
     viewpoint_stack = scene.getTrainCameras().copy()
-
+    print(f"Length of viewpoint stack: {len(viewpoint_stack)}")
     
     twoD_seg_results = {} # 2D segmentation results update through the pipeline
     os.makedirs(f"{out_dir}/2DSeg", exist_ok=True)
@@ -222,7 +247,7 @@ def training(dataset, opt, pipe, total_iterations=10000):
     random.shuffle(all_mask_paths)
     processed_masks = set()
     num_wheat_head = 0
-
+    
     #### Iterate through all YOLO/SAM bbox/seg pairs
     for exp_id, this_mask_path in enumerate(all_mask_paths):
         this_mask_name = os.path.splitext(os.path.basename(this_mask_path))[0]
@@ -247,21 +272,25 @@ def training(dataset, opt, pipe, total_iterations=10000):
                             save_name=this_mask_name,
                             pred_seg=this_mask.squeeze().numpy() > 0)
         
-        # Train Gaussians' labels w.r.t ONE segmentation
-        train_label_w_seg(gaussians, [this_viewpoint_cam], [this_mask_path], opt, background, iterations=2000)
+        # Optimize Gaussians' labels w.r.t ONE segmentation
+        all_obj_labels = opt_label_w_seg(gaussians, [this_viewpoint_cam], [this_mask_path], pipe, background)
+        obj_used_mask = (all_obj_labels[1]).bool()
 
         #### Render from other cameras
         # Initialize a list of consistent segmentation for future fine-tuning
         new_viewpoint_stack = [this_viewpoint_cam]
         match_mask_paths = [this_mask_path]
+        sum_max_iou = 0.0
         
         for viewpoint_cam in viewpoint_stack:
             if viewpoint_cam.image_name == this_image_name:
                 continue
             else:
-                # Go through other cameras to find match
-                render_label = torch.mean(get_render_label(viewpoint_cam, gaussians, background), dim=0, keepdim=True)
-                pred_seg = render_label.squeeze().detach().cpu().numpy() > 0.01
+                with torch.no_grad():
+                    # Go through other cameras to find match
+                    render_pkg = flashsplat_render(viewpoint_cam, gaussians, pipe, background, used_mask=obj_used_mask)
+                    render_alpha = render_pkg["alpha"]
+                    pred_seg = render_alpha.squeeze().detach().cpu().numpy() > 0.5
                 pred_bbox = get_bbox_from_mask(pred_seg) # get outer bounding box of segmentation
                 # Load YOLO bounding boxes
                 bboxes = torch.load(viewpoint_cam.bbox_path) / viewpoint_cam.resolution_scale
@@ -288,65 +317,82 @@ def training(dataset, opt, pipe, total_iterations=10000):
                         max_overlap_mask = mask
                         max_overlap_mask_path = mask_path
                                          
-                if max_iou > 0.5: # Hyperparameters to modify
+                if max_iou > iou_threshold: # Hyperparameters to modify
                     # Add matched viewpoint cam and matched seg to a list
                     new_viewpoint_stack.append(viewpoint_cam)
                     match_mask_paths.append(max_overlap_mask_path)
+                    sum_max_iou += max_iou
                     match_mask_name = os.path.splitext(os.path.basename(max_overlap_mask_path))[0]
                     # processed_masks.add(match_mask_name) # Don't add matched to processed here!
                     print(f"Find a mathch with IOU={max_iou} with seg {match_mask_name}") 
                     # Create the saved match directory only when a macth is found
-                    os.makedirs(f"{out_dir}/{this_mask_name}/match", exist_ok=True)
-                    vis_image_w_overlay(img_tensor=viewpoint_cam.original_image, 
-                                        save_dir=f"{out_dir}/{this_mask_name}/match", 
-                                        save_name=match_mask_name,
-                                        pred_seg=pred_seg,
-                                        overlap_seg=max_overlap_mask,
-                                        resize_factor=2
-                                       )
+                    # os.makedirs(f"{out_dir}/{this_mask_name}/match", exist_ok=True)
+                    # vis_image_w_overlay(img_tensor=viewpoint_cam.original_image, 
+                    #                     save_dir=f"{out_dir}/{this_mask_name}/match", 
+                    #                     save_name=match_mask_name,
+                    #                     pred_seg=pred_seg,
+                    #                     overlap_seg=max_overlap_mask,
+                    #                     resize_factor=4
+                    #                    )
+
         
         assert len(new_viewpoint_stack) == len(match_mask_paths)
-        print(f"Total of {len(new_viewpoint_stack)} matches with IOU > 0.5 found for refine training.")
-        # print("Set", processed_masks)
+        print(f"Total of {len(new_viewpoint_stack)} matches with IOU > {iou_threshold} found for refine training.")
 
-        if len(new_viewpoint_stack) >= 3:
+        if len(new_viewpoint_stack) >= num_match:
             #### Only do Refine training w.r.t newly found segmentation  when 2 matches (3 corresponding seg) are found ####
             num_wheat_head += 1
             print(f"Add {len(match_mask_paths)} matched masks to processed_masks")
+            writer.writerow([num_wheat_head, this_mask_name, str(len(new_viewpoint_stack)), f"{sum_max_iou/(len(new_viewpoint_stack)-1):.4f}"])
+            results.flush()
+            
             for match_mask_path in match_mask_paths:
                 match_mask_name = os.path.splitext(os.path.basename(match_mask_path))[0]
                 processed_masks.add(match_mask_name)
-            
+
             print(f"Start refine training w.r.t the {num_wheat_head}th wheat head found")
-            train_label_w_seg(gaussians, new_viewpoint_stack, match_mask_paths, opt, background, iterations=6000)
+            # train_label_w_seg(gaussians, new_viewpoint_stack, match_mask_paths, opt, background, iterations=6000)
+            all_obj_labels = opt_label_w_seg(gaussians, new_viewpoint_stack, match_mask_paths, pipe, background)
+            obj_used_mask = (all_obj_labels[1]).bool()
             
-            # gaussians.save_ply(f"output/{os.path.splitext(os.path.basename(mask_path))[0]}_refined.ply")
-    
             #### Evaluation of refined training ####
+            os.makedirs(f"{out_dir}/{this_mask_name}/masks", exist_ok=True)
+            os.makedirs(f"{out_dir}/{this_mask_name}/refine", exist_ok=True)  
             for i, viewpoint_cam in enumerate(viewpoint_stack):
                 with torch.no_grad():
-                    render_label = torch.mean(get_render_label(viewpoint_cam, gaussians, background), dim=0, keepdim=False).detach().cpu()
-                    pred_seg = render_label.numpy() > 0.01
-                    os.makedirs(f"{out_dir}/{this_mask_name}/refine", exist_ok=True)
+                    render_pkg = flashsplat_render(viewpoint_cam, gaussians, pipe, background, used_mask=obj_used_mask)
+                    render_alpha = render_pkg["alpha"].squeeze().detach().cpu()
+                    pred_seg = render_alpha.numpy() > 0.5          
+                    mask = Image.fromarray(np.where(pred_seg, 255, 0).astype(np.uint8), mode='L')
+                    mask.save(f"{out_dir}/{this_mask_name}/masks/{viewpoint_cam.image_name}.png")
                     vis_image_w_overlay(img_tensor=viewpoint_cam.original_image, 
                                         save_dir=f"{out_dir}/{this_mask_name}/refine",
                                         save_name=viewpoint_cam.image_name,
                                         pred_seg=pred_seg,
-                                        resize_factor=2)
+                                        resize_factor=4)
                     # Update the 2D seg&count results
-                    assert twoD_seg_results[viewpoint_cam.image_name].shape == render_label.shape
-                    twoD_seg_results[viewpoint_cam.image_name][render_label > 0.01] = num_wheat_head
+                    assert twoD_seg_results[viewpoint_cam.image_name].shape == render_alpha.shape
+                    twoD_seg_results[viewpoint_cam.image_name][render_alpha > 0.5] = num_wheat_head
                     # Update the saved 2D seg saved
                     torch.save(twoD_seg_results[viewpoint_cam.image_name], f"{out_dir}/2DSeg/{viewpoint_cam.image_name}.pt")
-            gaussians.reset_label(set_which_object_to=num_wheat_head)
-            print(f"Num of Gaussians corresponding to each wheat head {torch.unique(gaussians.get_which_object.cpu(), return_counts=True)}")
+            gaussians.reset_label(obj_used_mask=obj_used_mask, set_which_object_to=num_wheat_head)
+            
+            gaussians_obj = deepcopy(gaussians)
+            gaussians_obj.prune_points(mask=torch.flatten(gaussians_obj.get_which_object.detach() != num_wheat_head), during_training=False)
+            gaussians_obj.save_ply(f"{out_dir}/{this_mask_name}/{num_wheat_head:04}.ply")
+            # print(f"Num of Gaussians corresponding to each wheat head {torch.unique(gaussians.get_which_object.cpu(), return_counts=True)}")
         else:
-            gaussians.reset_label()
+            # Remove the saved segmentation if not enough matching is found 
+            shutil.rmtree(f"{out_dir}/{this_mask_name}")
+            print(f"Not enough matchings are found. Remove files at {out_dir}/{this_mask_name}")
 
         if exp_id % 5 == 0: # Save Gaussians every 5 distinct masks
             gaussians.save_ply(f"{out_dir}/gaussians.ply")
             print("Gaussians saved!")
         print(f"Processed masks {len(processed_masks)} / {len(all_mask_paths)}")
+        
+    gaussians.save_ply(f"{out_dir}/gaussians.ply")
+    results.close()
         
 if __name__ == "__main__":
     # Set up command line argument parser
@@ -354,8 +400,13 @@ if __name__ == "__main__":
     lp = ModelParams(parser)
     op = OptimizationParams(parser)
     pp = PipelineParams(parser)
+    parser.add_argument('--load_iteration', type=str, default="-1")
+    parser.add_argument("--exp_name", type=str, help="Exp name")
+    parser.add_argument("--iou_threshold", type=float, default=0.5, help="IOU threshold for matching")
+    parser.add_argument("--num_match", type=int, default=5, help="Num of matches required")
     args = parser.parse_args(sys.argv[1:])
     print("Optimizing " + args.model_path)
 
-    training(lp.extract(args), op.extract(args), pp.extract(args))
+    training(lp.extract(args), op.extract(args), pp.extract(args), 
+             args.load_iteration, args.exp_name, args.iou_threshold, args.num_match)
     

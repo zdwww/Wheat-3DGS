@@ -24,6 +24,8 @@ from plyfile import PlyData, PlyElement
 from utils.sh_utils import SH2RGB
 from scene.gaussian_model import BasicPointCloud
 
+np.set_printoptions(precision=10, suppress=True)
+
 class CameraInfo(NamedTuple):
     uid: int
     R: np.array
@@ -55,12 +57,16 @@ def getNerfppNorm(cam_info):
         return center.flatten(), diagonal
 
     cam_centers = []
-
+    # cam_centers2 = []
     for cam in cam_info:
+        print("cam.R", cam.R)
         W2C = getWorld2View2(cam.R, cam.T)
         C2W = np.linalg.inv(W2C)
         cam_centers.append(C2W[:3, 3:4])
+        # cam_centers2.append(W2C[:3, 3:4])
 
+    print("Min of camera centers:", np.min(np.hstack(cam_centers), axis=1))
+    print("Max of camera centers:", np.max(np.hstack(cam_centers), axis=1))
     center, diagonal = get_center_and_diag(cam_centers)
     radius = diagonal * 1.1
 
@@ -84,6 +90,7 @@ def readColmapCameras(cam_extrinsics, cam_intrinsics, images_folder, bboxes_fold
         uid = intr.id
         R = np.transpose(qvec2rotmat(extr.qvec))
         T = np.array(extr.tvec)
+        print("OG T", T)
 
         if intr.model=="SIMPLE_PINHOLE":
             focal_length_x = intr.params[0]
@@ -102,13 +109,19 @@ def readColmapCameras(cam_extrinsics, cam_intrinsics, images_folder, bboxes_fold
         print(f"\nLoad {image_name}")
         image = Image.open(image_path)
 
-        bbox_path = os.path.join(bboxes_folder, image_name + ".pt")
-        assert os.path.exists(bbox_path), f"No bounding boxes for {image_name} found"
+        if bboxes_folder is not None:
+            bbox_path = os.path.join(bboxes_folder, image_name + ".pt")
+            assert os.path.exists(bbox_path), f"No bounding boxes for {image_name} found"
+        else:
+            bbox_path = None
 
-        mask_paths_pattern = os.path.join(masks_folder, f"{image_name}_*.png")
-        mask_paths = sorted(glob.glob(mask_paths_pattern))
-        assert len(mask_paths) != 0, f"No segmentation masks for {image_name} found"
-
+        if masks_folder is not None:
+            mask_paths_pattern = os.path.join(masks_folder, f"{image_name}_*.png")
+            mask_paths = sorted(glob.glob(mask_paths_pattern))
+            assert len(mask_paths) != 0, f"No segmentation masks for {image_name} found"
+        else:
+            mask_paths = None
+            
         cam_info = CameraInfo(uid=uid, R=R, T=T, FovY=FovY, FovX=FovX, image=image,
                               image_path=image_path, image_name=image_name, width=width, height=height,
                               bbox_path=bbox_path, mask_paths=mask_paths)
@@ -126,8 +139,8 @@ def fetchPly(path):
 
 def storePly(path, xyz, rgb):
     # Define the dtype for the structured array
-    dtype = [('x', 'f4'), ('y', 'f4'), ('z', 'f4'),
-            ('nx', 'f4'), ('ny', 'f4'), ('nz', 'f4'),
+    dtype = [('x', 'f8'), ('y', 'f8'), ('z', 'f8'),
+            ('nx', 'f8'), ('ny', 'f8'), ('nz', 'f8'),
             ('red', 'u1'), ('green', 'u1'), ('blue', 'u1')]
     
     normals = np.zeros_like(xyz)
@@ -135,13 +148,12 @@ def storePly(path, xyz, rgb):
     elements = np.empty(xyz.shape[0], dtype=dtype)
     attributes = np.concatenate((xyz, normals, rgb), axis=1)
     elements[:] = list(map(tuple, attributes))
-
     # Create the PlyData object and write to file
     vertex_element = PlyElement.describe(elements, 'vertex')
     ply_data = PlyData([vertex_element])
     ply_data.write(path)
 
-def readColmapSceneInfo(path, images, eval, llffhold=8):
+def readColmapSceneInfo(path, images, eval, llffhold=8, normalize=False):
     try:
         cameras_extrinsic_file = os.path.join(path, "sparse/0", "images.bin")
         cameras_intrinsic_file = os.path.join(path, "sparse/0", "cameras.bin")
@@ -158,10 +170,12 @@ def readColmapSceneInfo(path, images, eval, llffhold=8):
     
     bboxes_dir = os.path.join(path, "bboxes")
     if not os.path.exists(bboxes_dir):
-        raise FileNotFoundError("No directory of saved bounding boxes found!")
+        print("No directory of saved bounding boxes found!")
+        bboxes_dir = None
     masks_dir = os.path.join(path, "masks")
     if not os.path.exists(masks_dir):
-        raise FileNotFoundError("No directory of saved segmentation masks found!")
+        print("No directory of saved segmentation masks found!")
+        masks_dir = None
     
     cam_infos_unsorted = readColmapCameras(cam_extrinsics=cam_extrinsics, 
                                            cam_intrinsics=cam_intrinsics, 
@@ -171,8 +185,18 @@ def readColmapSceneInfo(path, images, eval, llffhold=8):
     cam_infos = sorted(cam_infos_unsorted.copy(), key = lambda x : x.image_name)
 
     if eval:
-        train_cam_infos = [c for idx, c in enumerate(cam_infos) if idx % llffhold != 0]
-        test_cam_infos = [c for idx, c in enumerate(cam_infos) if idx % llffhold == 0]
+        # train_cam_infos = [c for idx, c in enumerate(cam_infos) if idx % llffhold != 0]
+        # test_cam_infos = [c for idx, c in enumerate(cam_infos) if idx % llffhold == 0]    
+        train_cam_infos = []
+        test_cam_infos = []
+        for cam_info in cam_infos:
+            cam_idx = int(cam_info.image_name.split('_')[-1])
+            if cam_idx > 10:
+                test_cam_infos.append(cam_info)
+            else:
+                train_cam_infos.append(cam_info)
+        print(f"Train Cam list with {len(train_cam_infos)} cams: {[cam.image_name for cam in train_cam_infos]}")
+        print(f"Test Cam list with {len(test_cam_infos)} cams: {[cam.image_name for cam in test_cam_infos]}")
     else:
         train_cam_infos = cam_infos
         test_cam_infos = []

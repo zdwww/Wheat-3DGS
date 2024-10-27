@@ -44,7 +44,8 @@ def training(dataset, opt, pipe, testing_iterations, saving_iterations, checkpoi
     iter_start = torch.cuda.Event(enable_timing = True)
     iter_end = torch.cuda.Event(enable_timing = True)
 
-    viewpoint_stack = None
+    viewpoint_stack = scene.getTrainCameras().copy()
+    print("Length of viewpoint stack", len(viewpoint_stack))
     ema_loss_for_log = 0.0
     progress_bar = tqdm(range(first_iter, opt.iterations), desc="Training progress")
     first_iter += 1
@@ -73,9 +74,7 @@ def training(dataset, opt, pipe, testing_iterations, saving_iterations, checkpoi
             gaussians.oneupSHdegree()
 
         # Pick a random Camera
-        if not viewpoint_stack:
-            viewpoint_stack = scene.getTrainCameras().copy()
-        viewpoint_cam = viewpoint_stack.pop(randint(0, len(viewpoint_stack)-1))
+        viewpoint_cam = viewpoint_stack[randint(0, len(viewpoint_stack)-1)]
 
         # Render
         if (iteration - 1) == debug_from:
@@ -97,9 +96,9 @@ def training(dataset, opt, pipe, testing_iterations, saving_iterations, checkpoi
         with torch.no_grad():
             # Progress bar
             ema_loss_for_log = 0.4 * loss.item() + 0.6 * ema_loss_for_log
-            if iteration % 10 == 0:
-                progress_bar.set_postfix({"Loss": f"{ema_loss_for_log:.{7}f}"})
-                progress_bar.update(10)
+            if iteration % 500 == 0:
+                progress_bar.set_postfix({"Loss": f"{ema_loss_for_log:.{7}f}", "Num_points": len(gaussians.get_xyz)})
+                progress_bar.update(500)
             if iteration == opt.iterations:
                 progress_bar.close()
 
