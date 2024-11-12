@@ -35,14 +35,17 @@ def training(dataset, opt, pipe):
 
     dataset.source_path = "../Wheat-GS-data/20240717/plot_461"
     print(dataset.source_path)
-    scene = Scene(dataset, gaussians)
-    print(f"Scene1 extent {scene.cameras_extent}")
-    # print(f"{scene.gaussians.get_xyz}")
-    print(f"Min xyz {torch.min(scene.gaussians.get_xyz, dim=0).values.detach().cpu()}")
-    print(f"Max xyz {torch.max(scene.gaussians.get_xyz, dim=0).values.detach().cpu()}")
+    # scene = Scene(dataset, gaussians)
+    # print(f"Scene1 extent {scene.cameras_extent}")
+    # # print(f"{scene.gaussians.get_xyz}")
+    # print(f"Min xyz {torch.min(scene.gaussians.get_xyz, dim=0).values.detach().cpu()}")
+    # print(f"Max xyz {torch.max(scene.gaussians.get_xyz, dim=0).values.detach().cpu()}")
 
     dataset.source_path = "../Wheat-GS-data/20240717/plot_461_new"
+    dataset.model_path = "/cluster/scratch/daizhang/Wheat-GS-output/OG3DGS/plot_461_test"
     scene = Scene(dataset, gaussians)
+
+    return
     print(f"Scene2 extent {scene.cameras_extent}")
     # print(f"{scene.gaussians.get_xyz}")
     print(f"Min xyz {torch.min(scene.gaussians.get_xyz, dim=0).values.detach().cpu()}")

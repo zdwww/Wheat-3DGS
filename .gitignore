@@ -8,3 +8,6 @@ tensorboard_3d
 screenshots
 .ipynb_checkpoints
 sbatch_log
+cameras.json
+input.ply
+submodules

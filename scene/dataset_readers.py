@@ -57,16 +57,12 @@ def getNerfppNorm(cam_info):
         return center.flatten(), diagonal
 
     cam_centers = []
-    # cam_centers2 = []
+
     for cam in cam_info:
-        print("cam.R", cam.R)
         W2C = getWorld2View2(cam.R, cam.T)
         C2W = np.linalg.inv(W2C)
         cam_centers.append(C2W[:3, 3:4])
-        # cam_centers2.append(W2C[:3, 3:4])
 
-    print("Min of camera centers:", np.min(np.hstack(cam_centers), axis=1))
-    print("Max of camera centers:", np.max(np.hstack(cam_centers), axis=1))
     center, diagonal = get_center_and_diag(cam_centers)
     radius = diagonal * 1.1
 
@@ -90,7 +86,6 @@ def readColmapCameras(cam_extrinsics, cam_intrinsics, images_folder, bboxes_fold
         uid = intr.id
         R = np.transpose(qvec2rotmat(extr.qvec))
         T = np.array(extr.tvec)
-        print("OG T", T)
 
         if intr.model=="SIMPLE_PINHOLE":
             focal_length_x = intr.params[0]
@@ -106,7 +101,6 @@ def readColmapCameras(cam_extrinsics, cam_intrinsics, images_folder, bboxes_fold
 
         image_path = os.path.join(images_folder, os.path.basename(extr.name))
         image_name = os.path.basename(image_path).split(".")[0]
-        print(f"\nLoad {image_name}")
         image = Image.open(image_path)
 
         if bboxes_folder is not None:

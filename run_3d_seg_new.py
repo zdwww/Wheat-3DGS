@@ -209,8 +209,11 @@ def opt_label_w_seg(gaussians : GaussianModel,
     return all_obj_labels
         
 def training(dataset, opt, pipe, load_iteration, exp_name, iou_threshold, num_match):
-    out_dir = os.path.join("/cluster/scratch/daizhang/Wheat-GS-output/WheatGS", exp_name)
+    out_dir = os.path.join(dataset.model_path, "wheat-head", exp_name)
     os.makedirs(out_dir, exist_ok=True)
+    with open(f"{out_dir}/experiment.txt", "w") as file:
+        file.write(f"exp_name {exp_name}\niou_threshold {iou_threshold}\nnum_match {num_match}\n")
+    
     results = open(os.path.join(out_dir, 'results.csv'), mode='w', newline='')
     writer = csv.writer(results)
     writer.writerow(["id", "init_mask", "num_matches", "mean_iou"])
@@ -264,11 +267,13 @@ def training(dataset, opt, pipe, load_iteration, exp_name, iou_threshold, num_ma
         this_viewpoint_cam = next(cam for cam in viewpoint_stack if cam.image_name == this_image_name)
             
         # Save the ground-truth target mask, for manual verification only
-        os.makedirs(f"{out_dir}/{this_mask_name}", exist_ok=True)
+        this_mask_dir = f"{out_dir}/{num_wheat_head:04}"
+        os.makedirs(this_mask_dir, exist_ok=True)
+        
         with Image.open(this_mask_path) as temp:
             this_mask = binarize_mask(PILtoTorch(temp.copy(), this_viewpoint_cam.resolution))
         vis_image_w_overlay(img_tensor=this_viewpoint_cam.original_image, 
-                            save_dir=f"{out_dir}/{this_mask_name}", 
+                            save_dir=this_mask_dir, 
                             save_name=this_mask_name,
                             pred_seg=this_mask.squeeze().numpy() > 0)
         
@@ -325,16 +330,6 @@ def training(dataset, opt, pipe, load_iteration, exp_name, iou_threshold, num_ma
                     match_mask_name = os.path.splitext(os.path.basename(max_overlap_mask_path))[0]
                     # processed_masks.add(match_mask_name) # Don't add matched to processed here!
                     print(f"Find a mathch with IOU={max_iou} with seg {match_mask_name}") 
-                    # Create the saved match directory only when a macth is found
-                    # os.makedirs(f"{out_dir}/{this_mask_name}/match", exist_ok=True)
-                    # vis_image_w_overlay(img_tensor=viewpoint_cam.original_image, 
-                    #                     save_dir=f"{out_dir}/{this_mask_name}/match", 
-                    #                     save_name=match_mask_name,
-                    #                     pred_seg=pred_seg,
-                    #                     overlap_seg=max_overlap_mask,
-                    #                     resize_factor=4
-                    #                    )
-
         
         assert len(new_viewpoint_stack) == len(match_mask_paths)
         print(f"Total of {len(new_viewpoint_stack)} matches with IOU > {iou_threshold} found for refine training.")
@@ -356,17 +351,17 @@ def training(dataset, opt, pipe, load_iteration, exp_name, iou_threshold, num_ma
             obj_used_mask = (all_obj_labels[1]).bool()
             
             #### Evaluation of refined training ####
-            os.makedirs(f"{out_dir}/{this_mask_name}/masks", exist_ok=True)
-            os.makedirs(f"{out_dir}/{this_mask_name}/refine", exist_ok=True)  
+            os.makedirs(f"{this_mask_dir}/masks", exist_ok=True)
+            os.makedirs(f"{this_mask_dir}/refine", exist_ok=True)  
             for i, viewpoint_cam in enumerate(viewpoint_stack):
                 with torch.no_grad():
                     render_pkg = flashsplat_render(viewpoint_cam, gaussians, pipe, background, used_mask=obj_used_mask)
                     render_alpha = render_pkg["alpha"].squeeze().detach().cpu()
                     pred_seg = render_alpha.numpy() > 0.5          
                     mask = Image.fromarray(np.where(pred_seg, 255, 0).astype(np.uint8), mode='L')
-                    mask.save(f"{out_dir}/{this_mask_name}/masks/{viewpoint_cam.image_name}.png")
+                    mask.save(f"{this_mask_dir}/masks/{viewpoint_cam.image_name}.png")
                     vis_image_w_overlay(img_tensor=viewpoint_cam.original_image, 
-                                        save_dir=f"{out_dir}/{this_mask_name}/refine",
+                                        save_dir=f"{this_mask_dir}/refine",
                                         save_name=viewpoint_cam.image_name,
                                         pred_seg=pred_seg,
                                         resize_factor=4)
@@ -379,12 +374,12 @@ def training(dataset, opt, pipe, load_iteration, exp_name, iou_threshold, num_ma
             
             gaussians_obj = deepcopy(gaussians)
             gaussians_obj.prune_points(mask=torch.flatten(gaussians_obj.get_which_object.detach() != num_wheat_head), during_training=False)
-            gaussians_obj.save_ply(f"{out_dir}/{this_mask_name}/{num_wheat_head:04}.ply")
+            gaussians_obj.save_ply(f"{this_mask_dir}/{num_wheat_head:04}.ply")
             # print(f"Num of Gaussians corresponding to each wheat head {torch.unique(gaussians.get_which_object.cpu(), return_counts=True)}")
         else:
             # Remove the saved segmentation if not enough matching is found 
-            shutil.rmtree(f"{out_dir}/{this_mask_name}")
-            print(f"Not enough matchings are found. Remove files at {out_dir}/{this_mask_name}")
+            shutil.rmtree(this_mask_dir)
+            print(f"Not enough matchings are found. Remove files at {this_mask_dir}")
 
         if exp_id % 5 == 0: # Save Gaussians every 5 distinct masks
             gaussians.save_ply(f"{out_dir}/gaussians.ply")

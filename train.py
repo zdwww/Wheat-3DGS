@@ -10,6 +10,7 @@
 #
 
 import os
+import wandb
 import torch
 from random import randint
 from utils.loss_utils import l1_loss, ssim
@@ -29,6 +30,8 @@ except ImportError:
     TENSORBOARD_FOUND = False
 
 def training(dataset, opt, pipe, testing_iterations, saving_iterations, checkpoint_iterations, checkpoint, debug_from):
+
+    wandb.init(project="Wheat-GS", name=dataset.source_path.split("/")[-1], dir="/cluster/scratch/daizhang/wandb")
     first_iter = 0
     tb_writer = prepare_output_and_logger(dataset)
     gaussians = GaussianModel(dataset.sh_degree)
@@ -125,7 +128,9 @@ def training(dataset, opt, pipe, testing_iterations, saving_iterations, checkpoi
             if iteration < opt.iterations:
                 gaussians.optimizer.step()
                 gaussians.optimizer.zero_grad(set_to_none = True)
-
+                
+            wandb.log({'step': iteration, 'loss': loss.item(), 'num points': len(gaussians.get_xyz)})
+            
             if (iteration in checkpoint_iterations):
                 print("\n[ITER {}] Saving Checkpoint".format(iteration))
                 torch.save((gaussians.capture(), iteration), scene.model_path + "/chkpnt" + str(iteration) + ".pth")
