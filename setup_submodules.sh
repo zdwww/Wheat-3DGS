@@ -1,6 +1,6 @@
 #!/bin/bash
 #SBATCH -J setup
-#SBATCH --time=1:00:00
+#SBATCH --time=3:00:00
 #SBATCH --gpus=1
 #SBATCH --mem-per-cpu=4G
 #SBATCH --cpus-per-task=4
@@ -13,8 +13,9 @@ echo $(module list)
 source ~/.bashrc
 conda activate base
 
-conda activate gs_w_depth
+conda activate viser
 
 # pip install --no-cache-dir submodules/diff-gaussian-rasterization
 # pip install --no-cache-dir submodules/simple-knn
-pip install --no-cache-dir submodules/flashsplat-rasterization
+# pip install --no-cache-dir submodules/flashsplat-rasterization
+pip install viser[examples]

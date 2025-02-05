@@ -184,7 +184,7 @@ def multi_instance_opt(all_contrib, gamma=0.):
 def opt_label_w_seg(gaussians : GaussianModel, 
                     viewpoint_stack : List[Camera], 
                     mask_paths : List[str], 
-                    pipeline, background):
+                    pipeline, background, pts_filter=None):
     """Helper function that wraps Gaussians label optimization schema into one function"""
     assert len(viewpoint_stack) == len(mask_paths)
     
@@ -202,6 +202,10 @@ def opt_label_w_seg(gaussians : GaussianModel,
             all_counts += used_count
         gc.collect()
         torch.cuda.empty_cache()
+
+    if pts_filter is not None:
+        cols_to_modify = pts_filter.nonzero(as_tuple=True)[0]
+        all_counts[1:, cols_to_modify] = 0
         
     slackness = 0.0
     all_obj_labels = multi_instance_opt(all_counts, slackness)
@@ -227,6 +231,10 @@ def training(dataset, opt, pipe, load_iteration, exp_name, iou_threshold, num_ma
     scene = Scene(dataset, gaussians, load_iteration=load_iteration, shuffle=False)
     gaussians.training_setup(opt)
     print(f"Loaded point cloud size: {len(gaussians.get_xyz)}")
+
+    z_mean = torch.mean(gaussians.get_xyz.cpu()[:, 2])
+    print(f"All Gaussians z_min: {torch.min(gaussians.get_xyz.cpu()[:, 2])} zmax: {torch.max(gaussians.get_xyz.cpu()[:, 2])}")
+    pts_filter = (gaussians.get_xyz.cpu()[:, 2] < z_mean)
 
     bg_color = [1, 1, 1] if dataset.white_background else [0, 0, 0]
     background = torch.tensor(bg_color, dtype=torch.float32, device="cuda")
@@ -278,7 +286,10 @@ def training(dataset, opt, pipe, load_iteration, exp_name, iou_threshold, num_ma
                             pred_seg=this_mask.squeeze().numpy() > 0)
         
         # Optimize Gaussians' labels w.r.t ONE segmentation
-        all_obj_labels = opt_label_w_seg(gaussians, [this_viewpoint_cam], [this_mask_path], pipe, background)
+        all_obj_labels = opt_label_w_seg(gaussians, [this_viewpoint_cam], [this_mask_path], pipe, background, pts_filter)
+        if torch.sum(all_obj_labels, dim=1)[1] == 0:
+            print(f"Can't identify any Gaussians above average height for this mask: {this_mask_name}), PASS")
+            continue
         obj_used_mask = (all_obj_labels[1]).bool()
 
         #### Render from other cameras

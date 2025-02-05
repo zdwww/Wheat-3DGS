@@ -10,6 +10,7 @@
 #
 
 import torch
+import math
 from torch import nn
 import numpy as np
 from utils.graphics_utils import getWorld2View2, getProjectionMatrix
@@ -61,6 +62,40 @@ class Camera(nn.Module):
         self.mask_paths = mask_paths
         self.resolution = resolution
         self.resolution_scale = resolution_scale
+
+        self.rect_camera = self.compute_image_plane_rect()
+        self.rect_world, self.rectangle = self.get_near_plane_rect_world()
+    
+    def compute_image_plane_rect(self):
+        # Compute rectangle in camera space
+        half_width = self.znear * math.tan(self.FoVx / 2.0)
+        half_height = self.znear * math.tan(self.FoVy / 2.0)
+        zc = -self.zfar
+
+        rect = {
+            "top_left": (-half_width,  half_height, zc),
+            "top_right": (half_width,  half_height, zc),
+            "bottom_left": (-half_width, -half_height, zc),
+            "bottom_right": (half_width, -half_height, zc)
+        }
+        return rect
+
+    def get_near_plane_rect_world(self):
+        # Transform the camera-space rectangle corners into world coordinates
+        view_to_world = self.world_view_transform.inverse()
+
+        # Convert each corner to homogeneous coords and transform
+        rect_world = {}
+        rectangle = []
+        for key, (x, y, z) in self.rect_camera.items():
+            corner_cam = torch.tensor([x, y, z, 1.0], dtype=torch.float32, device=self.data_device)
+            corner_world = view_to_world @ corner_cam
+            # Normalize by w just in case (should be 1.0 if it's a proper rigid transform)
+            corner_world = corner_world / corner_world[3]
+            rect_world[key] = (corner_world[0].item(), corner_world[1].item(), corner_world[2].item())
+            rectangle.append(np.array([corner_world[0].item(), corner_world[1].item()]))
+        rectangle = np.vstack(rectangle)
+        return rect_world, rectangle
 
 class MiniCam:
     def __init__(self, width, height, fovy, fovx, znear, zfar, world_view_transform, full_proj_transform):

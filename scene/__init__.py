@@ -18,12 +18,16 @@ from scene.gaussian_model import GaussianModel
 from scene.cameras import Camera
 from arguments import ModelParams
 from utils.camera_utils import cameraList_from_camInfos, camera_to_JSON
+from utils.wheatgs_helper import get_center_and_diag
+
+import numpy as np
+import torch
 
 class Scene:
 
     gaussians : GaussianModel
 
-    def __init__(self, args : ModelParams, gaussians : GaussianModel, load_iteration=None, shuffle=True, resolution_scales=[1.0]):
+    def __init__(self, args : ModelParams, gaussians : GaussianModel, load_iteration=None, shuffle=True, resolution_scales=[1.0], which_wheat_head=None):
         """b
         :param path: Path to colmap scene main folder.
         """
@@ -75,10 +79,21 @@ class Scene:
             print("Loading Test Cameras")
             self.test_cameras[resolution_scale] = cameraList_from_camInfos(scene_info.test_cameras, resolution_scale, args)
 
-        if self.loaded_iter:
-            load_path = os.path.join(self.model_path, "point_cloud", "iteration_" + str(self.loaded_iter), "point_cloud.ply")
+        if which_wheat_head is not None:
+            print(f"Loading .PLY for wheat head {which_wheat_head}...")
+            wheat_head = str(int(which_wheat_head)).zfill(4)
+            load_path = os.path.join(self.model_path, "wheat-head", "run1", wheat_head, f"{str(int(which_wheat_head)+1).zfill(4)}.ply")
             self.gaussians.load_ply(load_path)
-            print(f"Ply loaded from {load_path}")
+            xyz = self.gaussians.get_xyz.detach().cpu().numpy()
+            _, diagonal = get_center_and_diag(np.transpose(xyz))
+            radius = diagonal * 1.1
+            print(f"Update scene radius from previous {self.cameras_extent} to {radius}")
+            self.cameras_extent = radius
+            
+        elif self.loaded_iter:
+            load_path = os.path.join(self.model_path, "point_cloud", "iteration_" + str(self.loaded_iter), "point_cloud.ply")
+            print(f"Loading .PLY of the whole scene from {load_path}...")
+            self.gaussians.load_ply(load_path)
         else:
             self.gaussians.create_from_pcd(scene_info.point_cloud, self.cameras_extent)
 
@@ -91,3 +106,12 @@ class Scene:
 
     def getTestCameras(self, scale=1.0):
         return self.test_cameras[scale]
+
+    def load_ply(self, load_path):
+        # Load from .ply and update scene radius
+        self.gaussians.load_ply(load_path)
+        xyz = self.gaussians.get_xyz.detach().cpu().numpy()
+        _, diagonal = get_center_and_diag(np.transpose(xyz))
+        radius = diagonal * 1.1
+        print(f"Update scene radius from previous {self.cameras_extent} to {radius}")
+        self.cameras_extent = radius
