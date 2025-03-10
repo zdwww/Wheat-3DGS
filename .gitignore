@@ -11,3 +11,7 @@ sbatch_log
 cameras.json
 input.ply
 submodules
+data
+dataset
+results
+outputs
