@@ -1,5 +1,6 @@
 import json
 import os
+import sys
 from datetime import datetime
 from pathlib import Path
 
@@ -198,6 +199,8 @@ if __name__ == "__main__":
     
     # Single method analysis
     method = "nerfacto"
+    if sys.argv[1]:
+        method = sys.argv[1]
     get_results_per_scene(base_path, method, output_folder / method)
     
     # Or compare multiple methods

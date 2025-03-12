@@ -1,5 +1,5 @@
 # Default values
-method="instant-ngp"
+method="splatfacto"
 gpu_id=0
 
 # Parse arguments (GPU)
@@ -20,6 +20,7 @@ fi
 base_folder="/workspace/Wheat-GS"
 dataset_folder="$base_folder/dataset/Wheat-GS-data-nerf/20240717"
 output_path="$base_folder/outputs"
+transforms_json=transforms_with_splits.json
 results_json=test_results.json
 
 # Iterate through all input folders
@@ -43,18 +44,20 @@ for input_folder in "$dataset_folder"/*; do
     echo "Processing scene $scene"
     
     # Train
-    echo "Training scene $scene"
+    echo "Training scene $scene"  
     ns-train $method \
-        --data "$input_folder" \
-        --vis wandb \
+        --data "$input_folder/$transforms_json" \
+        --experiment-name $scene \
         --project-name WheatGS-nerfstudio \
-        blender-data 
+        --vis wandb \
+        nerfstudio-data
 
     # Get directory
     latest_exp_name=$(ls $model_path | sort -r | head -n 1)
     exp_path="$model_path/$latest_exp_name"
 
-    # Caculate metrics
+    # Render and calculate metrics
+    ns-render dataset --load_config "$exp_path/config.yml" --split train+test --output-path "$exp_path"
     ns-eval --load-config "$exp_path/config.yml" --output-path "$exp_path/$results_json"
 
 done
