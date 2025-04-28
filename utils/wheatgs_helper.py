@@ -278,7 +278,7 @@ def render_360(og_view, scene_radius, render_path, n_frames, framerate, gaussian
     fovy, fovx = og_view.FoVy, og_view.FoVx
     znear, zfar = og_view.znear, og_view.zfar
     camera_distance = scene_radius * 2
-    c2ws = get_camera_path_fixed_elevation(n_frames=n_frames, n_circles=1, camera_distance=camera_distance, cam_center=gs_centroid, elevation=60)
+    c2ws = get_camera_path_fixed_elevation(n_frames=n_frames, n_circles=1, camera_distance=camera_distance, cam_center=gs_centroid, elevation=45)
     for idx in tqdm(range(len(c2ws)), desc="render360"):
         c2w = c2ws[idx]
         c2w = np.vstack([c2w, [0.0, 0.0, 0.0, 1.0]])
@@ -330,6 +330,6 @@ def render_360(og_view, scene_radius, render_path, n_frames, framerate, gaussian
     #     output_video
     #     ], cwd=render_path, shell=True, check=True)
     
-    shutil.rmtree(render_path)
+    # shutil.rmtree(render_path)
     return output_video
     

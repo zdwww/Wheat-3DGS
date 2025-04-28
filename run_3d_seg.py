@@ -41,8 +41,8 @@ from utils.wheatgs_utils import (
 )
 CONSOLE = Console()
 
-def find_new_mask_dir(out_dir, num_wheat_head):
-    base_dir = f"{out_dir}/{num_wheat_head:04}"
+def find_new_mask_dir(img_dir, num_wheat_head):
+    base_dir = f"{img_dir}/{num_wheat_head:04}"
     existing_dirs = glob.glob(f"{base_dir}*")
     assert existing_dirs, f"Error: No existing directory found for {base_dir}*"
     for letter_suffix in string.ascii_lowercase:  # 'a' to 'z'
@@ -207,6 +207,13 @@ def update_processed_masks(processed_masks, new_mask_paths):
 def training(dataset, opt, pipe, load_iteration, exp_name, iou_threshold):
     out_dir = os.path.join(dataset.model_path, "wheat-head", exp_name)
     os.makedirs(out_dir, exist_ok=True)
+    ply_dir = os.path.join(out_dir, "ply")
+    os.makedirs(ply_dir, exist_ok=True)
+    img_dir = os.path.join(out_dir, "img")
+    os.makedirs(img_dir, exist_ok=True)
+    count_dir = os.path.join(out_dir, "count")
+    os.makedirs(count_dir, exist_ok=True)
+
     with open(f"{out_dir}/experiment.txt", "w") as file:
         file.write(f"exp_name {exp_name}\niou_threshold {iou_threshold}\n")
     
@@ -308,7 +315,7 @@ def training(dataset, opt, pipe, load_iteration, exp_name, iou_threshold):
         if len(new_viewpoint_stack) > 0:
             num_wheat_head += 1 # Potential wheat head
             # if find a match, then it's processed and create a dir for it
-            this_mask_dir = f"{out_dir}/{num_wheat_head:04}"
+            this_mask_dir = f"{img_dir}/{num_wheat_head:04}"
             os.makedirs(this_mask_dir, exist_ok=True)
             processed_masks.add(this_mask_name)
             
@@ -352,9 +359,9 @@ def training(dataset, opt, pipe, load_iteration, exp_name, iou_threshold):
                 CONSOLE.print(f"===== This wheat head is largely overlapped with previous one {which_overlap_object}, Remove created {this_mask_dir} =====")
                 num_GS = torch.sum(gaussians_obj.get_which_object.detach() == which_wheat_head).item()
                 gaussians_obj.prune_points(mask=torch.flatten(gaussians_obj.get_which_object.detach() != which_wheat_head), during_training=False)
-                letter_suffix = find_new_mask_dir(out_dir, which_wheat_head)
-                gaussians_obj.save_ply(f"{out_dir}/wh_{which_wheat_head:04}_{letter_suffix}.ply")
-                this_mask_dir = f"{out_dir}/{which_wheat_head:04}_{letter_suffix}"
+                letter_suffix = find_new_mask_dir(img_dir, which_wheat_head)
+                gaussians_obj.save_ply(f"{ply_dir}/wh_{which_wheat_head:04}_{letter_suffix}.ply")
+                this_mask_dir = f"{img_dir}/{which_wheat_head:04}_{letter_suffix}"
                 os.makedirs(this_mask_dir, exist_ok=True)
                 CONSOLE.print(f"Create new mask dir {this_mask_dir}")
                 writer.writerow([f"{which_wheat_head:04}_{letter_suffix}", this_mask_name, str(len(matched_viewpoint_stack)), str(num_GS)])
@@ -364,9 +371,17 @@ def training(dataset, opt, pipe, load_iteration, exp_name, iou_threshold):
                 which_wheat_head = num_wheat_head
                 num_GS = torch.sum(gaussians_obj.get_which_object.detach() == which_wheat_head).item()
                 gaussians_obj.prune_points(mask=torch.flatten(gaussians_obj.get_which_object.detach() != which_wheat_head), during_training=False)
-                gaussians_obj.save_ply(f"{out_dir}/wh_{which_wheat_head:04}.ply")
+                gaussians_obj.save_ply(f"{ply_dir}/wh_{which_wheat_head:04}.ply")
                 writer.writerow([f"{which_wheat_head:04}", this_mask_name, str(len(matched_viewpoint_stack)), str(num_GS)])
                 results.flush()
+
+            # Save used count for future use
+            print(f"For wh {which_wheat_head}, all_counts.shape {all_counts.shape}")
+            counts_save_pth = f"{count_dir}/{which_wheat_head:04}.pt"
+            if os.path.exists(counts_save_pth):
+                print(f"{counts_save_pth} exists...removing...")
+                os.remove(counts_save_pth)
+            torch.save(all_counts.detach().cpu(), counts_save_pth)
 
             #### Evaluation of refined training ####
             # os.makedirs(f"{this_mask_dir}/overlay", exist_ok=True)  

@@ -462,12 +462,48 @@ class GaussianModel:
         self.xyz_gradient_accum[update_filter] += torch.norm(viewspace_point_tensor.grad[update_filter,:2], dim=-1, keepdim=True)
         self.denom[update_filter] += 1
 
-    def reset_label(self, obj_used_mask, set_which_object_to=None):
-        if set_which_object_to is not None: # then update 
-            # self._which_object[self._label > 0.01] = set_which_object_to
+    def reset_label(self, obj_used_mask, set_which_object_to=None, overlap_threshold=0.8):
+        """
+        If largely overlap with previous set, 0.8 * identified Gaussians already belonged to another wheat head
+        if new > old 
+        """
+        nonzero_count = torch.count_nonzero(self._which_object[obj_used_mask]).item()
+        overlap_ratio = 0.0
+        if nonzero_count > 0:
+            overlap_ratio = nonzero_count / torch.count_nonzero(obj_used_mask).item()
+            print(f"[{nonzero_count} / {torch.count_nonzero(obj_used_mask).item()}] Gaussians already belong to other wheat heads.")
+            overlap_count = torch.unique(self._which_object[obj_used_mask], return_counts=True)
+            if overlap_ratio > overlap_threshold:
+                # if largely overlap, identify the previous wheat head
+                unique_values, counts = overlap_count
+                unique_values, counts = unique_values.cpu(), counts.cpu()
+                nonzero_mask = unique_values != 0
+                nonzero_values = unique_values[nonzero_mask]
+                nonzero_counts = counts[nonzero_mask]
+                max_idx = torch.argmax(nonzero_counts)
+                max_value = nonzero_values[max_idx]
+                which_overlap_object = max_value.item()
+                overlap_obj_mask = (self._which_object == which_overlap_object)
+                print(obj_used_mask.shape, overlap_obj_mask.shape)
+                print(f"* Overlap ratio {overlap_ratio} with counts {overlap_count}. Old wh {which_overlap_object} has {torch.count_nonzero(overlap_obj_mask).item()} Gaussians")
+                # check if the overlap part w.r.t existing assignment is smaller than the threshold
+                new_mask, old_mask = obj_used_mask.squeeze().detach().cpu(), overlap_obj_mask.squeeze().detach().cpu()
+                assert new_mask.shape == old_mask.shape
+                intersect_ratio = torch.sum(new_mask & old_mask).float() / torch.sum(new_mask) if torch.sum(new_mask) > 0 else torch.tensor(0.0)
+                print(f"* Intersection ratio w.r.t old identified Gaussians for wh {which_overlap_object} is {intersect_ratio.item()}")
+                if intersect_ratio.item() < 0.6:
+                    print(f"* Identify new wh {set_which_object_to} within old wh {which_overlap_object}")
+                    self._which_object[obj_used_mask] = set_which_object_to
+                    return None
+                else:
+                    self._which_object[obj_used_mask] = which_overlap_object
+                    return which_overlap_object
+            else:
+                self._which_object[obj_used_mask] = set_which_object_to
+                return None
+        if set_which_object_to is not None:
             self._which_object[obj_used_mask] = set_which_object_to
-        # labels = np.ones((self._xyz.shape[0], 1), dtype=float) * 0.01
-        # self._label = nn.Parameter(torch.tensor(labels, dtype=torch.float, device="cuda").requires_grad_(True))
+            return None
 
     def update_lr_for_label(self, label_lr=0.01):
         """Disable learning rate for all other variables except for label"""

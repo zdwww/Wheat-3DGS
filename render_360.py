@@ -76,11 +76,11 @@ def opt_w_masks(viewpoint_cam, gaussians, pipe, background, obj_masks, obj_num=N
     used_count = render_pkg["used_count"].detach().cpu()
     return used_count, obj_num
 
-def render_all(dataset : ModelParams, pipeline : PipelineParams):
+def render_all(dataset : ModelParams, pipeline : PipelineParams, exp_name):
     with torch.no_grad():
         gaussians = GaussianModel(dataset.sh_degree)
         scene = Scene(dataset, gaussians, load_iteration=None, shuffle=False)
-        bg_color = [1,1,1] if dataset.white_background else [0, 0, 0]
+        bg_color = [1,1,1] # if dataset.white_background else [0, 0, 0]
         background = torch.tensor(bg_color, dtype=torch.float32, device="cuda")
 
         og_views = scene.getTrainCameras()
@@ -90,23 +90,32 @@ def render_all(dataset : ModelParams, pipeline : PipelineParams):
         znear, zfar = og_view.znear, og_view.zfar
         print(f"Fixed parameters width: {width} height {height} fovy {fovy} fovx {fovx}")
 
-        wheat_head_dir = os.path.join(dataset.model_path, "wheat-head", "run3")
-        wheat_head_folders = [
-            name for name in os.listdir(wheat_head_dir)
-            if os.path.isdir(os.path.join(wheat_head_dir, name)) and name.isdigit()
-        ]
-        wheat_head_folders = sorted(wheat_head_folders)
-        for idx, wheat_head in enumerate(tqdm(wheat_head_folders, desc="Rendering progress")):
-            scene.load_ply(os.path.join(wheat_head_dir, wheat_head, f"{str(int(wheat_head)+1).zfill(4)}.ply"))
+        wheat_head_dir = os.path.join(dataset.model_path, "wheat-head", exp_name, "ply")
+        # wheat_head_folders = [
+        #     name for name in os.listdir(wheat_head_dir)
+        #     if os.path.isdir(os.path.join(wheat_head_dir, name)) and name.isdigit()
+        # ]
+        # wheat_head_folders = sorted(wheat_head_folders)
+        ply_files = [f for f in os.listdir(wheat_head_dir) if f.startswith("wh") and f.endswith(".ply")]
+        print("ply_files", len(ply_files), ply_files)
+
+        # for idx, wheat_head in enumerate(tqdm(wheat_head_folders, desc="Rendering progress")):
+        for idx, ply_file in enumerate(tqdm(ply_files, desc="Rendering progress")):
+            if len(os.path.splitext(ply_file)[0].split("_")) > 2:
+                print(f"Pass file {ply_file}")
+                continue
+
+            scene.load_ply(os.path.join(wheat_head_dir, ply_file))
             gs_centroid = torch.mean(gaussians.get_xyz, dim=0).cpu().tolist()
             scene_radius = scene.cameras_extent
             print(f"Gaussians centroid {gs_centroid}, Scene radius {scene_radius}")
             
-            camera_distance = scene_radius * 0.75
-            render_path = os.path.join(dataset.model_path, "render360", str(int(wheat_head)).zfill(4))
+            ply_id = ply_file.replace("wh_", "", 1).replace(".ply", "", 1)
+            camera_distance = scene_radius * 0.65
+            render_path = os.path.join(os.path.dirname(wheat_head_dir), "3DWheat", ply_id)
             makedirs(render_path, exist_ok=True)
 
-            c2ws = get_camera_path_fixed_elevation(n_frames=100, n_circles=1, camera_distance=camera_distance, cam_center=gs_centroid, elevation=25)
+            c2ws = get_camera_path_fixed_elevation(n_frames=100, n_circles=1, camera_distance=camera_distance, cam_center=gs_centroid, elevation=15)
             for idx, c2w in enumerate(c2ws):
                 c2w = np.vstack([c2w, [0.0, 0.0, 0.0, 1.0]])
                 w2c = np.linalg.inv(np.float64(c2w))
@@ -116,22 +125,22 @@ def render_all(dataset : ModelParams, pipeline : PipelineParams):
                 view = MiniCam(width, height, fovy, fovx, znear, zfar, world_view_transform, full_proj_transform)
                 render_pkg = render(view, gaussians, pipeline, background)
                 rendering = render_pkg["render"]
-                torchvision.utils.save_image(rendering, os.path.join(render_path, '{0:05d}'.format(idx) + ".jpg"))
-            output_video = os.path.join(os.path.dirname(render_path), f"{int(wheat_head):04}.mp4")
+                torchvision.utils.save_image(rendering, os.path.join(render_path, '{0:05d}'.format(idx) + ".png"))
+            output_video = os.path.join(os.path.dirname(render_path), f"{ply_id}.mp4")
             framerate = 10
             subprocess.run([
                 "ffmpeg",
                 "-loglevel", "error",
                 "-framerate", str(framerate),
                 "-start_number", "0",
-                "-i", "%05d.jpg",  
+                "-i", "%05d.png",  
                 "-vf", "scale=iw-mod(iw\,2):ih-mod(ih\,2)",
                 "-r", str(framerate),
                 "-vcodec", "libx264",
                 "-pix_fmt", "yuv420p",
                 output_video
             ], cwd=render_path)
-            shutil.rmtree(render_path)
+            # shutil.rmtree(render_path)
             
 def render_sets(dataset : ModelParams, iteration : int, pipeline : PipelineParams, which_wheat_head=None):
     with torch.no_grad():
@@ -191,8 +200,8 @@ def render_sets(dataset : ModelParams, iteration : int, pipeline : PipelineParam
         shutil.rmtree(render_path)
 
 def render_3d_seg(dataset : ModelParams, pipeline : PipelineParams, opt, load_iteration=-1):
-    seg2d_dir = os.path.join(dataset.model_path, "wheat-head", "what", "2DSeg")
-    out_dir = os.path.join(dataset.model_path, "wheat-head", "what", "3DSeg")
+    seg2d_dir = os.path.join(dataset.model_path, "wheat-head", "run_test", "2DSeg")
+    out_dir = os.path.join(dataset.model_path, "wheat-head", "run_test", "3DSeg")
     os.makedirs(out_dir, exist_ok=True)
     gaussians = GaussianModel(dataset.sh_degree)
     try:
@@ -206,6 +215,8 @@ def render_3d_seg(dataset : ModelParams, pipeline : PipelineParams, opt, load_it
     bg_color = [1, 1, 1] if dataset.white_background else [0, 0, 0]
     background = torch.tensor(bg_color, dtype=torch.float32, device="cuda")
     viewpoint_stack = scene.getTrainCameras().copy()
+    viewpoint_stack_eval = scene.getTestCameras().copy()
+    # viewpoint_stack += viewpoint_stack_eval
     print(f"Length of viewpoint stack: {len(viewpoint_stack)}")
 
     obj_num = 0
@@ -222,12 +233,17 @@ def render_3d_seg(dataset : ModelParams, pipeline : PipelineParams, opt, load_it
         used_count, flash_splat_obj_num = opt_w_masks(viewpoint_cam, gaussians, pipeline, background, seg2d, obj_num)
         if all_counts is None:
             all_counts = torch.zeros_like(used_count)
-        print(used_count.shape, flash_splat_obj_num)
+        print(f"Used count: {used_count.shape}, flash_splat_obj_num {flash_splat_obj_num}")
         all_counts += used_count
         gc.collect()
         torch.cuda.empty_cache()
+    print(f"All counts: {all_counts.shape}")
     slackness = 0.0
+    torch.save(all_counts.detach().cpu(), os.path.join(dataset.model_path, "wheat-head", "run_test", "all_counts.pth"))
     all_obj_labels = multi_instance_opt(all_counts, slackness)
+    print("All_obj_labels: ", all_obj_labels.shape)
+    # Save for future rendering
+    torch.save(all_obj_labels.detach().cpu(), os.path.join(dataset.model_path, "wheat-head", "run_test", "all_obj_labels.pth"))
     output_video = render_360(viewpoint_stack[0], scene.cameras_extent, out_dir, 200, 10, gaussians, pipeline, background, all_obj_labels=all_obj_labels)
 
 if __name__ == "__main__":
@@ -238,11 +254,12 @@ if __name__ == "__main__":
     opt = OptimizationParams(parser)
     parser.add_argument("--iteration", default=-1, type=int)
     parser.add_argument("--which_wheat_head", type=str, default=None)
+    parser.add_argument("--exp_name", type=str, default=None)
     args = get_combined_args(parser)
     print(f"Rendering {args.model_path} for wheat head {args.which_wheat_head}")
     if args.which_wheat_head == "all":
         print("Render All Wheat Heads")
-        render_all(model.extract(args), pipeline.extract(args))
+        render_all(model.extract(args), pipeline.extract(args), args.exp_name)
     elif args.which_wheat_head == "3dseg":
         print("Render 3D Segmentation")
         render_3d_seg(model.extract(args), pipeline.extract(args), opt.extract(args))

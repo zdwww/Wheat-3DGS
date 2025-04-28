@@ -105,14 +105,14 @@ def readColmapCameras(cam_extrinsics, cam_intrinsics, images_folder, bboxes_fold
         
         if bboxes_folder is not None:
             bbox_path = os.path.join(bboxes_folder, image_name + ".pt")
-            assert os.path.exists(bbox_path), f"No bounding boxes for {image_name} found at {bbox_path}"
+            # assert os.path.exists(bbox_path), f"No bounding boxes for {image_name} found at {bbox_path}"
         else:
             bbox_path = None
 
         if masks_folder is not None:
             mask_paths_pattern = os.path.join(masks_folder, f"{image_name}_*.png")
             mask_paths = sorted(glob.glob(mask_paths_pattern))
-            assert len(mask_paths) != 0, f"No segmentation masks for {image_name} found at {masks_folder}"
+            # assert len(mask_paths) != 0, f"No segmentation masks for {image_name} found at {masks_folder}"
         else:
             mask_paths = None
             
