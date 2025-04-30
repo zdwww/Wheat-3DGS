@@ -1,4 +1,4 @@
-
+import os
 import torch
 import numpy as np
 from PIL import Image
@@ -41,18 +41,6 @@ def gray_tensor_to_PIL(tensor : torch.Tensor):
 
 def rgb_tensor_to_PIL(tensor : torch.Tensor):
     return Image.fromarray((np.transpose(torch.clamp(tensor.detach().cpu(), 0, 1).numpy(), (1, 2, 0)) * 255.0).astype(np.uint8))
-
-def overlay_img_w_mask(image_pil, mask_pil, color="red"):
-    if color == "red":
-        overlay = Image.new("RGBA", image_pil.size, (255, 0, 0, 0))    
-        overlay = Image.composite(Image.new("RGBA", image_pil.size, (255, 0, 0, 128)), overlay, mask_pil)
-    elif color == "blue":
-        overlay = Image.new("RGBA", image_pil.size, (0, 0, 255, 0))    
-        overlay = Image.composite(Image.new("RGBA", image_pil.size, (0, 0, 255, 128)), overlay, mask_pil)
-    image_pil = image_pil.convert("RGBA")
-    image_with_overlay = Image.alpha_composite(image_pil, overlay)
-    image_with_overlay_rgb = image_with_overlay.convert("RGB")
-    return image_with_overlay_rgb
 
 def get_bbox_from_mask(mask):
     object_pixels = np.argwhere(mask == 1)
@@ -115,3 +103,37 @@ def calculate_seg_iou(mask1, mask2):
     return iou
 
 ########### End of Image Helper Functions ###########
+
+########### Begin of Visualization Helper Functions ###########
+
+def overlay_img_w_mask(image_pil, mask_pil, color="red"):
+    if color == "red":
+        overlay = Image.new("RGBA", image_pil.size, (255, 0, 0, 0))    
+        overlay = Image.composite(Image.new("RGBA", image_pil.size, (255, 0, 0, 128)), overlay, mask_pil)
+    elif color == "blue":
+        overlay = Image.new("RGBA", image_pil.size, (0, 0, 255, 0))    
+        overlay = Image.composite(Image.new("RGBA", image_pil.size, (0, 0, 255, 128)), overlay, mask_pil)
+    image_pil = image_pil.convert("RGBA")
+    image_with_overlay = Image.alpha_composite(image_pil, overlay)
+    image_with_overlay_rgb = image_with_overlay.convert("RGB")
+    return image_with_overlay_rgb
+
+def vis_image_w_overlay(img_tensor, save_dir, save_name, pred_seg, overlap_seg=None, resize_factor=1):
+    """
+    Args:
+        pred_seg: segmentation rendered from 3DGS
+        overlap_seg: seg obtained from SAM with largest IOU between pred_seg
+    """
+    image_pil = rgb_tensor_to_PIL(img_tensor)
+    mask_pil = Image.fromarray(pred_seg.astype(np.uint8) * 255)
+    image_with_overlay = overlay_img_w_mask(image_pil, mask_pil, color="red")
+    if overlap_seg is not None:
+        mask_pil = Image.fromarray(overlap_seg.astype(np.uint8) * 255)
+        image_with_overlay = overlay_img_w_mask(image_with_overlay, mask_pil, color="blue")
+    if resize_factor != 1:
+        width, height = image_with_overlay.size                
+        new_size = (width // resize_factor, height // resize_factor)
+        image_with_overlay = image_with_overlay.resize(new_size)
+    image_with_overlay.save(os.path.join(save_dir, f"{save_name}.jpg"))
+
+########### End of Visualization Helper Functions ###########

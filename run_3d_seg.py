@@ -1,47 +1,40 @@
 import os
+import sys
 import gc
 import csv
 import glob
 import random
-import torch
-import string
 import shutil
-import numpy as np
-from random import randint
-from utils.loss_utils import l1_loss, ssim
-from gaussian_renderer import render, network_gui
-from gaussian_renderer import flashsplat_render # FlashSplat Render
-import sys
-from scene import Scene, GaussianModel, Camera
-from utils.general_utils import safe_state
-import uuid
-from tqdm import tqdm
-from utils.image_utils import psnr
-from argparse import ArgumentParser, Namespace
-from arguments import ModelParams, PipelineParams, OptimizationParams
-from PIL import Image, ImageDraw
-from gaussian_renderer.render_helper import get_render_label
-import torch.nn as nn
-import torch.nn.functional as F
-from typing import List
+import string
+from argparse import ArgumentParser
 from copy import deepcopy
+from typing import List
+
+import numpy as np
+import torch
+import torch.nn.functional as F
+from PIL import Image
 from rich.console import Console
-import torchvision
+from tqdm import tqdm
+
+from arguments import ModelParams, PipelineParams, OptimizationParams
+from gaussian_renderer import flashsplat_render
+from scene import Scene, GaussianModel, Camera
 from utils.wheatgs_utils import (
-    normalize_to_0_1,
     PILtoTorch,
     binarize_mask,
-    gray_tensor_to_PIL,
-    rgb_tensor_to_PIL,
-    overlay_img_w_mask,
     get_bbox_from_mask,
     is_overlapping,
-    calculate_bbox_iou,
-    calculate_seg_iou
+    calculate_seg_iou,
+    vis_image_w_overlay
 )
 CONSOLE = Console()
 
 def find_new_mask_dir(img_dir, num_wheat_head):
+    """
+    Function used to find the previous-identified & overlapped segmentation's suffix
+    and reuturn the new letter suffix in order.
+    """
     base_dir = f"{img_dir}/{num_wheat_head:04}"
     existing_dirs = glob.glob(f"{base_dir}*")
     assert existing_dirs, f"Error: No existing directory found for {base_dir}*"
@@ -52,30 +45,12 @@ def find_new_mask_dir(img_dir, num_wheat_head):
             break
     return letter_suffix
 
-########### Begin of Visualization Helper Functions, will migrate to utils dir later ###########
-
-def vis_image_w_overlay(img_tensor, save_dir, save_name, pred_seg, overlap_seg=None, resize_factor=1):
-    """
-    Args:
-        pred_seg: segmentation rendered from 3DGS
-        overlap_seg: seg obtained from SAM with largest IOU between pred_seg
-    """
-    image_pil = rgb_tensor_to_PIL(img_tensor)
-    mask_pil = Image.fromarray(pred_seg.astype(np.uint8) * 255)
-    image_with_overlay = overlay_img_w_mask(image_pil, mask_pil, color="red")
-    if overlap_seg is not None:
-        mask_pil = Image.fromarray(overlap_seg.astype(np.uint8) * 255)
-        image_with_overlay = overlay_img_w_mask(image_with_overlay, mask_pil, color="blue")
-    if resize_factor != 1:
-        width, height = image_with_overlay.size                
-        new_size = (width // resize_factor, height // resize_factor)
-        image_with_overlay = image_with_overlay.resize(new_size)
-    image_with_overlay.save(os.path.join(save_dir, f"{save_name}.jpg"))
-
-########### End of Visualization Helper Functions ###########
-
 ########### Begin of Find & Match helper methods ###########
 
+# This function is adapted from the implementation in:
+# "FlashSplat: 2D to 3D Gaussian Splatting Segmentation Solved Optimally" by Shen et. al.
+# Paper: https://arxiv.org/abs/2409.08270
+# Original Code: https://github.com/florinshen/FlashSplat
 def multi_instance_opt(all_contrib, gamma=0.):
     """
     Input:
@@ -144,7 +119,6 @@ def find_match(target_viewpoint_stack, gs_params, obj_used_mask, iou_threshold, 
         target_viewpoint_stack: a list of viewpoints to iterate
         gs_params: gaussians, pipe, background
         obj_used_mask: pre-optimized flashsplat results
-        
     """
     gaussians, pipe, background = gs_params
     new_viewpoint_stack = []
