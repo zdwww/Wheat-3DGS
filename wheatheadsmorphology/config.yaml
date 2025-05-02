@@ -1,0 +1,52 @@
+# config.yaml
+# ---------------------------------------------------
+# DATA (paths & I/O)
+# ---------------------------------------------------
+# if relative paths given, they are resolved relative to this config.yaml file
+data_folder: "data_example/"    # path to your point-cloud folder
+output_folder: "results/"     # path for output
+file_format: "ply"                  # ply | txt
+
+# ---------------------------------------------------
+# TUNING
+# ---------------------------------------------------
+# (has an impact on algorithms/pipeline performance)
+# Point Cloud Subsampling
+subsampling_threshold: 5000         # if point cloud > this, subsample to this
+
+# Point Cloud Clustering
+# (identifying one core cluster and deleting the rest)
+# Info: see DBSCAN and HDBSCA in scikit-learn sklearn.cluster
+clusterer_definition:
+  type: "hdbscan"                   # "dbscan" | "hdbscan"
+#  epsilon: 0.005                    # only for DBSCAN
+  epsilon: 15                   # only for DBSCAN
+  min_samples: 15                   # for HDBSCAN only optional
+  min_cluster_size: 250            # only for HDBSCAN
+  epsilon_hdbscan: 0.015            # only for HDBSCAN
+
+# Outlier filtering
+# (robustified statistical outlier removal - SOR for clearning point cloud)
+# Info: own implementation, similar to cloudcompare.org/doc/wiki/index.php/SOR_filter
+sor_parameters:
+  k: 200                            # number of neighbors
+  std_ratio: 3                      # standard-deviation multiplier
+
+# Spline smoothing
+# (used for approximating central axes of the wheat head)
+splines_smoothing_value: 1         # s parameter for splprep in scipy
+
+# Parameters for wheat head cross-section width computation
+# Info: see the corresponding function for more info (should work as is)
+distance_percentile: 99            # percentile of observations for width estimation (1-100)
+
+# ---------------------------------------------------
+# OUTPUT OPTIONS
+# ---------------------------------------------------
+# saves object oriented and axis aligned bounding boxes (obb and aabb)
+# in a .json file
+get_bboxes: true                # bool
+get_processed_pcd: true          # bool
+
+
+
