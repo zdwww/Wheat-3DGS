@@ -41,13 +41,12 @@ python -u render.py \
 python -u metrics.py \
     -m $MDL_PATH \
 
-ython -u run_3d_seg_new.py \
+python -u run_3d_seg.py \
     -s $SRC_PATH \
     -m $MDL_PATH \
     --resolution 1 \
     --eval \
     --iou_threshold 0.6 \
-    --num_match 5 \
     --exp_name run1
     
 # python run_3d_seg_vis.py \

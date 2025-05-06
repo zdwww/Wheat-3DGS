@@ -1,17 +1,35 @@
-name: gaussian_splatting
+name: wheat3dgs
 channels:
   - pytorch
   - conda-forge
   - defaults
 dependencies:
-  - cudatoolkit=11.6
-  - plyfile
   - python=3.7.13
   - pip=22.3.1
+  - numpy
+  - scipy
+  - matplotlib
+  - pillow
+  - jupyterlab
+  - ipykernel
+  - ipython
+  - scikit-learn
+  - shapely
+  - ffmpeg
+  - cudatoolkit=11.6
   - pytorch=1.12.1
-  - torchaudio=0.12.1
   - torchvision=0.13.1
+  - torchaudio=0.12.1
+  - pyqt
+  - plyfile
   - tqdm
+  - pyyaml
   - pip:
-    - submodules/diff-gaussian-rasterization
-    - submodules/simple-knn
+      - wandb
+      - ffmpeg-python
+      - gitpython
+      - opencv-python
+      - joblib
+      - submodules/simple-knn
+      - submodules/diff-gaussian-rasterization
+      - submodules/flashsplat-rasterization
