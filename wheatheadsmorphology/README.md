@@ -67,6 +67,8 @@ If no path is provided, it defaults to `./config.yaml`.
 Install with:
 
 ```bash
+conda create -n wheat3dgs-pc python=3.10
+conda activate wheat3dgs-pc
 pip install -r requirements.txt
 ```
 
