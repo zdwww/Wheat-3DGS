@@ -1,11 +1,16 @@
-import numpy as np
-from sklearn.neighbors import NearestNeighbors
-from sklearn.cluster import DBSCAN
+from typing import Union
+
 import hdbscan
+import numpy as np
+import numpy.typing as npt
 from scipy import stats
+from sklearn.cluster import DBSCAN
+from sklearn.neighbors import NearestNeighbors
 
 
-def statistical_outlier_removal(data: np.ndarray, k: int = 10, std_ratio: [int, float] = 2.0):
+def statistical_outlier_removal(
+    data: np.ndarray, k: int = 10, std_ratio: Union[int, float] = 2.0
+) -> tuple[npt.NDArray, npt.NDArray]:
     """
     Perform statistical outlier removal on a point cloud.
     Parameters:
@@ -37,7 +42,7 @@ def statistical_outlier_removal(data: np.ndarray, k: int = 10, std_ratio: [int, 
     return data_filtered, data_outliers
 
 
-def subsample_pcd(data: np.ndarray, subsampling_threshold: float) -> np.ndarray:
+def subsample_pcd(data: npt.NDArray, subsampling_threshold: float) -> npt.NDArray:
     if data.shape[0] > subsampling_threshold:
         # Randomly select subsampling_threshold indices without replacement
         indices = np.random.choice(data.shape[0], subsampling_threshold, replace=False)
@@ -46,20 +51,28 @@ def subsample_pcd(data: np.ndarray, subsampling_threshold: float) -> np.ndarray:
     return data
 
 
-def main_cluster_extraction(data: np.ndarray, clusterer_definition: dict) -> np.ndarray:
+def main_cluster_extraction(
+    data: npt.NDArray, clusterer_definition: dict
+) -> npt.NDArray:
     # Run DBSCAN or HDBSCAN
-    algorithm_type = clusterer_definition['type']
-    min_samples = clusterer_definition['min_samples']
-    cluster_selection_epsilon = clusterer_definition['epsilon_hdbscan']
-    if algorithm_type == 'dbscan':
-        epsilon = clusterer_definition['epsilon']
-        clusterer = DBSCAN(eps=epsilon, min_samples=min_samples)  # Adjust eps and min_samples based on your data_example
-    elif algorithm_type == 'hdbscan':
-        min_cluster_size = clusterer_definition['min_cluster_size']
-        clusterer = hdbscan.HDBSCAN(min_cluster_size=min_cluster_size, min_samples=min_samples,
-                                    allow_single_cluster=True, cluster_selection_epsilon=cluster_selection_epsilon)
+    algorithm_type = clusterer_definition["type"]
+    min_samples = clusterer_definition["min_samples"]
+    cluster_selection_epsilon = clusterer_definition["epsilon_hdbscan"]
+    if algorithm_type == "dbscan":
+        epsilon = clusterer_definition["epsilon"]
+        clusterer = DBSCAN(
+            eps=epsilon, min_samples=min_samples
+        )  # Adjust eps and min_samples based on your data_example
+    elif algorithm_type == "hdbscan":
+        min_cluster_size = clusterer_definition["min_cluster_size"]
+        clusterer = hdbscan.HDBSCAN(
+            min_cluster_size=min_cluster_size,
+            min_samples=min_samples,
+            allow_single_cluster=True,
+            cluster_selection_epsilon=cluster_selection_epsilon,
+        )
     else:
-        print('Incorrect clusterer type, algorithm will crash!')
+        print("Incorrect clusterer type, algorithm will crash!")
 
     labels = clusterer.fit_predict(data[:, :3])
 

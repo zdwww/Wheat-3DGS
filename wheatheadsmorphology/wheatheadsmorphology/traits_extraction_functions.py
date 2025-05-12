@@ -1,12 +1,11 @@
-from typing import Tuple, Union
 import numpy as np
-from wheatheadsmorphology.visualization_utils import *
-from scipy.interpolate import splrep, splev
-from sklearn.decomposition import PCA
+import numpy.typing as npt
 import open3d as o3d
+from scipy.interpolate import splev, splrep
+from sklearn.decomposition import PCA
 
 
-def run_pca(data: np.ndarray) -> Tuple:
+def run_pca(data: npt.NDArray) -> tuple:
     #   - Separate only point cloud coordinates (xyz)
     pcd = data[:, :3]
     #   - Center the point cloud
@@ -19,7 +18,7 @@ def run_pca(data: np.ndarray) -> Tuple:
     return pcd_pca_3d, pca
 
 
-def compute_length(pcd_pca_3d: np.ndarray, splines_smoothing_value: float) -> Tuple:
+def compute_length(pcd_pca_3d: npt.NDArray, splines_smoothing_value: float) -> tuple:
     # Calculate Length
     #   - Project points into P1-P2 plane (cross-section of the object)
     pcd_pca_2d = pcd_pca_3d[:, :2]
@@ -30,7 +29,9 @@ def compute_length(pcd_pca_3d: np.ndarray, splines_smoothing_value: float) -> Tu
     #   - Fit smoothing spline into 2d points within P1-P2 plane
     tck = splrep(x_sorted, y_sorted, s=splines_smoothing_value)
     #   - Evaluate spline (between "robustified" min. and max. of all datapoints along x)
-    x_fine = np.linspace(np.percentile(x_sorted, 0.5), np.percentile(x_sorted, 99.5), 1000)
+    x_fine = np.linspace(
+        np.percentile(x_sorted, 0.5), np.percentile(x_sorted, 99.5), 1000
+    )
     y_fine = splev(x_fine, tck)
     #   - Combine the x,y coordinates into a single array
     central_axis_points = np.vstack((x_fine, y_fine)).T
@@ -60,7 +61,7 @@ def compute_inclination_angle(pca: PCA) -> float:
     return inclination_angle_deg
 
 
-def estimate_convex_hull_volume_o3d(data: np.ndarray) -> float:
+def estimate_convex_hull_volume_o3d(data: npt.NDArray) -> float:
     """
     Estimate the volume of the convex hull of a 3D point cloud using Open3D.
     In -> data_example : np.ndarray Nx3 (point cloud)
@@ -76,7 +77,7 @@ def estimate_convex_hull_volume_o3d(data: np.ndarray) -> float:
     return volume
 
 
-def compute_width_pca(data: np.ndarray, percentile: float = 95) -> float:
+def compute_width_pca(data: npt.NDArray, percentile: float = 95) -> float:
     """
     Compute an alternative width measure for a point cloud using PCA.
 
@@ -115,14 +116,16 @@ def compute_width_pca(data: np.ndarray, percentile: float = 95) -> float:
     return width
 
 
-def compute_traits(data: np.ndarray, distance_percentile: float,
-                   splines_smoothing_value: float) -> list:
+def compute_traits(
+    data: np.ndarray, distance_percentile: float, splines_smoothing_value: float
+) -> list:
     # do PCA on 3d point cloud & transform points into pcd_pca_3d
     pcd_pca_3d, pca = run_pca(data)
 
     # Length from 2D spline representing the skeleton of the object
-    length, spline_param, central_axis_points = compute_length(pcd_pca_3d,
-                                                               splines_smoothing_value=splines_smoothing_value)
+    length, spline_param, central_axis_points = compute_length(
+        pcd_pca_3d, splines_smoothing_value=splines_smoothing_value
+    )
 
     # Curvature from length and chord distance
     curvature = compute_curvature(length, central_axis_points)
