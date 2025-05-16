@@ -15,7 +15,7 @@
 - <b>[4/30/2025]</b> Initial code release 
 
 ## 📝 TODO List
-- \[ \] Viser-based 3D wheat head segmentation viewer
+- \[x\] Viser-based 3D wheat head segmentation viewer
 
 ## 🛠️ Setup
 The setup should be very similar to the original [3D Gaussian Splatting](https://github.com/graphdeco-inria/gaussian-splatting) except we used a modified version of [differential gaussian rasterization](https://github.com/ashawkey/diff-gaussian-rasterization/tree/8829d14f814fccdaf840b7b0f3021a616583c0a1) with support of depth & alpha rendering, and an additional [flashsplat-rasterization](https://github.com/florinshen/flashsplat-rasterization/tree/189c483ffa33dd6d5661343ce496df0c6eb80a0c) submodule. 
@@ -26,6 +26,9 @@ conda activate wheat3dgs
 ```
 
 ## Using Wheat3DGS
+
+### Quick start
+
 The majority of the Wheat3DGS pipeline can be executed by running this script.
 ```
 sbatch run_wheat_3dgs.sh
@@ -35,7 +38,7 @@ sbatch run_wheat_3dgs.sh
 
 **Step 1.** To train a vanilla 3DGS scene reconstruction using wheat plot images as initialization:
 ```
-python train_vanilla_3dgs.py -s <dataset path> -m <model path> --resolution 1 --eval
+python train_vanilla_3dgs.py -s <dataset_path> -m <model_path> --resolution 1 --eval
 ```
 Note that `resolution` is set to 1 to prevent image downscaling, and the training/test split for evaluation follows the default setting of our dataset.
 
@@ -45,16 +48,16 @@ You can also run `render.py` and `metrics.py` with the same input arguments to e
 
 **Step 3.** To run 3D segmentation on a wheat plot to identify and associate decoupled 2D wheat heads:
 ```
-python run_3d_seg.py -s <dataset path> -m <model path> --iou_threshold 0.6 --exp_name run1
+python run_3d_seg.py -s <dataset_path> -m <model_path> --iou_threshold 0.6 --exp_name run1
 ``` 
 | Parameter | Type | Description |
 | :-------: | :--: | :---------: |
 | `--iou_threshold` | `float` | The IoU threshold for associating rendered and YOLO-SAM-generated 2D segmentations. A higher threshold results in more conservative mask matching. |
-| `--exp_name` | `str` | The experiment name used to create the folder for saving all results under `model_path/wheat_head`.
+| `--exp_name` | `str` | The experiment name used to create the folder for saving all results under `<model_path>/wheat_head`.
 
-**Step 4.** To generate a video rotating around the reconstructed wheat field for qualitative evaluation of the 3D segmentation results (as shown on our project page), run:
+**Step 4.** To generate a video rotating around the reconstructed wheat field for **qualitative** evaluation of the 3D segmentation results (as shown on our project page), run:
 ```
-python render_360.py -s <dataset path> -m <model path> --render_type <field or head> --exp_name run1 --n_frames 200 --framerate 20 --elevation 45
+python render_360.py -s <dataset_path> -m <model_path> --render_type <field or head> --exp_name run1 --n_frames 200 --framerate 20 --elevation 45
 ```
 | Parameter | Type | Description |
 | :-------: | :--: | :---------: |
@@ -63,6 +66,13 @@ python render_360.py -s <dataset path> -m <model path> --render_type <field or h
 |`--framerate`| `int` | Framerate. Length of video = `n_frames / framerate`|
 |`--elevation`| `int` | Elevation angle for the camera trajectory rotating around the scene. The larger the angle, the more novel the rendered view is, since the training views are captured by an overhead camera. |
 
+Results will be saved as a video `<model_path>/wheat_head/<exp_name>/wheat_field_360.mp4` for the whole wheat field and a list of videos under the directory `.../<exp_name>/wheat_head_360` for each wheat head id.
+
+**Step 5.** To **quantitatively** evaluate the quality of 3D segmentation and reproduce Table 2 in the paper, project the 3D segmentation into 2D by
+```
+python eval_wheatgs.py -s <dataset_path> -m <model_path> --exp_name run1 --skip_train --load_counts
+```
+Rendered 2D segmentation will be saved under `model_path/test/ours_<iteration>/segmentation` and `overlay`, where they can be used for metric calculation.
 
 ## Baseline
 To reproduce the baseline results presented in the paper (i.e. [FruitNeRF](https://github.com/meyerls/FruitNeRF)), please refer to the original repository and the scripts in the `scripts` folder.
@@ -74,8 +84,7 @@ To reproduce the baseline results presented in the paper (i.e. [FruitNeRF](https
 </p> -->
 
 ## Visualization
-
-Coming soon!
+Our viewer is based on the implementation of [viser](https://github.com/nerfstudio-project/viser), allowing users to freely explore the reconstructed wheat field with overlaid 3D segmentation of wheat heads. Please refer to the scripts under folder `wheat3dgsviewer` for usage instructions.
 
 ## Acknowledgement
 Our implementation is based on the original [3D Gaussian Splatting](https://github.com/graphdeco-inria/gaussian-splatting) and [FlashSplat](https://github.com/florinshen/FlashSplat). We thank the authors for their revolutionary work and open-source contributions. 
