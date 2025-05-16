@@ -60,18 +60,22 @@ python -u render_360.py \
     --render_type field \
     --exp_name ${EXP_NAME} \
     --n_frames 200 \
-    --framerate 20 
+    --framerate 20 \
+    --elevation 45
 
 python -u render_360.py \
     -s $SRC_PATH \
     -m $MDL_PATH \
     --render_type head \
     --exp_name ${EXP_NAME} \
-    
+    --n_frames 100 \
+    --framerate 10 \
+    --elevation 30
+
+# Evaluating by generating 2D segmentation masks on novel views for quantitative evaluation
 python -u eval_wheatgs.py \
     -s $SRC_PATH \
     -m $MDL_PATH \
-    --resolution 1 \
-    --eval \
     --exp_name ${EXP_NAME} \
+    --skip_train \
     --load_counts

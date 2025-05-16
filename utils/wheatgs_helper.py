@@ -270,7 +270,7 @@ def eval_obj_labels(all_obj_labels, viewpoint_cam, gaussians, pipe, background):
         max_alpha[pix_mask] = render_alpha[pix_mask]
     return pred_mask
 
-def render_360(og_view, scene_radius, render_path, n_frames, framerate, gaussians, pipeline, background, all_obj_labels=None):
+def render_360(og_view, scene_radius, render_path, n_frames, framerate, gaussians, pipeline, background, elevation=45, all_obj_labels=None):
     from gaussian_renderer import render
     os.makedirs(render_path, exist_ok=True)
     gs_centroid = torch.mean(gaussians.get_xyz.detach(), dim=0).cpu().tolist()
@@ -278,7 +278,7 @@ def render_360(og_view, scene_radius, render_path, n_frames, framerate, gaussian
     fovy, fovx = og_view.FoVy, og_view.FoVx
     znear, zfar = og_view.znear, og_view.zfar
     camera_distance = scene_radius * 2
-    c2ws = get_camera_path_fixed_elevation(n_frames=n_frames, n_circles=1, camera_distance=camera_distance, cam_center=gs_centroid, elevation=45)
+    c2ws = get_camera_path_fixed_elevation(n_frames=n_frames, n_circles=1, camera_distance=camera_distance, cam_center=gs_centroid, elevation=elevation)
     for idx in tqdm(range(len(c2ws)), desc="render360"):
         c2w = c2ws[idx]
         c2w = np.vstack([c2w, [0.0, 0.0, 0.0, 1.0]])
@@ -301,7 +301,7 @@ def render_360(og_view, scene_radius, render_path, n_frames, framerate, gaussian
         gc.collect()
         torch.cuda.empty_cache()
         
-    output_video = os.path.join(os.path.dirname(render_path), "360.mp4")
+    output_video = os.path.join(os.path.dirname(render_path), "wheat_field_360.mp4")
     try:
         (
             ffmpeg

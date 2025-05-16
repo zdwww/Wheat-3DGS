@@ -68,7 +68,8 @@ def opt_w_masks(viewpoint_cam, gaussians, pipe, background, obj_masks, obj_num=N
     used_count = render_pkg["used_count"].detach().cpu()
     return used_count, obj_num
 
-def render_wheat_field(dataset : ModelParams, pipeline : PipelineParams, exp_name, n_frames=100, framerate=10, save_frames=False):
+def render_wheat_head(dataset : ModelParams, pipeline : PipelineParams, exp_name, 
+                      n_frames=200, framerate=20, elevation=15, save_frames=False):
     with torch.no_grad():
         gaussians = GaussianModel(dataset.sh_degree)
         scene = Scene(dataset, gaussians, load_iteration=None, shuffle=False)
@@ -104,10 +105,10 @@ def render_wheat_field(dataset : ModelParams, pipeline : PipelineParams, exp_nam
             
             ply_id = ply_file.replace("wh_", "", 1).replace(".ply", "", 1)
             camera_distance = scene_radius * 0.65
-            render_path = os.path.join(os.path.dirname(wheat_head_dir), "3DWheat", ply_id)
+            render_path = os.path.join(os.path.dirname(wheat_head_dir), "wheat_head_360", ply_id)
             makedirs(render_path, exist_ok=True)
 
-            c2ws = get_camera_path_fixed_elevation(n_frames=n_frames, n_circles=1, camera_distance=camera_distance, cam_center=gs_centroid, elevation=15)
+            c2ws = get_camera_path_fixed_elevation(n_frames=n_frames, n_circles=1, camera_distance=camera_distance, cam_center=gs_centroid, elevation=elevation)
             for idx, c2w in enumerate(c2ws):
                 c2w = np.vstack([c2w, [0.0, 0.0, 0.0, 1.0]])
                 w2c = np.linalg.inv(np.float64(c2w))
@@ -135,7 +136,8 @@ def render_wheat_field(dataset : ModelParams, pipeline : PipelineParams, exp_nam
             if not save_frames:
                 shutil.rmtree(render_path)
 
-def render_wheat_head(dataset : ModelParams, pipeline : PipelineParams, exp_name, n_frames=100, framerate=10, load_iteration=-1, save_frames=False):
+def render_wheat_field(dataset : ModelParams, pipeline : PipelineParams, exp_name, 
+                       n_frames=100, framerate=10, elevation=45, save_frames=False, load_iteration=-1):
     seg2d_dir = os.path.join(dataset.model_path, "wheat-head", exp_name, "2DSeg")
     out_dir = os.path.join(dataset.model_path, "wheat-head", exp_name, "3DSeg")
     os.makedirs(out_dir, exist_ok=True)
@@ -180,7 +182,10 @@ def render_wheat_head(dataset : ModelParams, pipeline : PipelineParams, exp_name
     print("All_obj_labels: ", all_obj_labels.shape)
     # Save for future rendering
     torch.save(all_obj_labels.detach().cpu(), os.path.join(dataset.model_path, "wheat-head", exp_name, "all_obj_labels.pth"))
-    output_video = render_360(viewpoint_stack[0], scene.cameras_extent, out_dir, n_frames, framerate, gaussians, pipeline, background, all_obj_labels=all_obj_labels)
+    output_video = render_360(viewpoint_stack[0], scene.cameras_extent, out_dir, n_frames, framerate, gaussians, pipeline, background, 
+                              all_obj_labels=all_obj_labels, elevation=elevation)
+    if not save_frames: # if not specified then remove the saved frames for generating video
+        shutil.rmtree(out_dir)
 
 if __name__ == "__main__":
     # Set up command line argument parser
@@ -191,20 +196,17 @@ if __name__ == "__main__":
     parser.add_argument("--iteration", default=-1, type=int, help="iteration of OG 3DGS to load")
     parser.add_argument("--render_type", type=str, default=None, help="render type: field (whole wheat field) or head (all individual wheat heads)")
     parser.add_argument("--exp_name", type=str, default=None, help="experiment name of 3D segmentation to load")
-    parser.add_argument("--n_frames", type=int, default=None, help="number of frames to render")
-    parser.add_argument("--framerate", type=int, default=None, help="framerate of the rendered video")
+    parser.add_argument("--n_frames", type=int, default=100, help="number of frames to render")
+    parser.add_argument("--framerate", type=int, default=10, help="framerate of the rendered video")
+    parser.add_argument("--elevation", type=int, default=45, help="elevation angle for the camera trajectory rotating around the scene")
     parser.add_argument("--save_frames", action="store_true", help="If specified, save frames in addition to output video")
     args = get_combined_args(parser)
-    print(f"Rendering {args.model_path} for 3D segmentation experiment {args.exp_name}, Option: {args.which_wheat_head}")
-    if args.n_frames is None:
-        args.n_frames = 100
-    if args.framerate is None:
-        args.framerate = 10
+    print(f"Rendering {args.model_path} for 3D segmentation experiment {args.exp_name}, Option: {args.render_type}")
     if args.render_type == "field":
         print("Render the 3D segmentation on the whole wheat field")
-        render_wheat_field(model.extract(args), pipeline.extract(args), args.exp_name, args.n_frames, args.framerate, args.save_frames)
+        render_wheat_field(model.extract(args), pipeline.extract(args), args.exp_name, args.n_frames, args.framerate, args.elevation, args.save_frames)
     elif args.render_type == "head":
         print("Render each individual segmented wheat head")
-        render_wheat_head(model.extract(args), pipeline.extract(args), args.exp_name, args.n_frames, args.framerate, args.save_frames)
+        render_wheat_head(model.extract(args), pipeline.extract(args), args.exp_name, args.n_frames, args.framerate, args.elevation, args.save_frames)
     else:
         raise ValueError(f"Invalid render type: either field or head")

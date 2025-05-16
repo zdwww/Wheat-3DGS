@@ -45,13 +45,23 @@ You can also run `render.py` and `metrics.py` with the same input arguments to e
 
 **Step 3.** To run 3D segmentation on a wheat plot to identify and associate decoupled 2D wheat heads:
 ```
-python run_3d_seg.py -s <dataset path> -m <model path> --resolution 1 --eval --iou_threshold 0.6 --exp_name run1
+python run_3d_seg.py -s <dataset path> -m <model path> --iou_threshold 0.6 --exp_name run1
 ``` 
 | Parameter | Type | Description |
 | :-------: | :--: | :---------: |
 | `--iou_threshold` | `float` | The IoU threshold for associating rendered and YOLO-SAM-generated 2D segmentations. A higher threshold results in more conservative mask matching. |
 | `--exp_name` | `str` | The experiment name used to create the folder for saving all results under `model_path/wheat_head`.
 
+**Step 4.** To generate a video rotating around the reconstructed wheat field for qualitative evaluation of the 3D segmentation results (as shown on our project page), run:
+```
+python render_360.py -s <dataset path> -m <model path> --render_type <field or head> --exp_name run1 --n_frames 200 --framerate 20 --elevation 45
+```
+| Parameter | Type | Description |
+| :-------: | :--: | :---------: |
+| `--render_type` | `field` or `head` | Either render a video rotating around the entire reconstructed wheat field with the 3D segmentation overlaid on it, or a list of close-up videos of individual identified wheat heads. |
+|`--n_frames` | `int` | Number of video frames (It’s recommended to set a relatively small value for wheat heads, as hundreds of them will be processed.)|
+|`--framerate`| `int` | Framerate. Length of video = `n_frames / framerate`|
+|`--elevation`| `int` | Elevation angle for the camera trajectory rotating around the scene. The larger the angle, the more novel the rendered view is, since the training views are captured by an overhead camera. |
 
 
 ## Baseline
