@@ -119,6 +119,7 @@ def find_match(target_viewpoint_stack, gs_params, obj_used_mask, iou_threshold, 
         target_viewpoint_stack: a list of viewpoints to iterate
         gs_params: gaussians, pipe, background
         obj_used_mask: pre-optimized flashsplat results
+    Output:
     """
     gaussians, pipe, background = gs_params
     new_viewpoint_stack = []
@@ -179,14 +180,12 @@ def update_processed_masks(processed_masks, new_mask_paths):
 ########### End of Find & Match helper methods ###########
         
 def training(dataset, opt, pipe, load_iteration, exp_name, iou_threshold):
+    # All 3DSeg results will be saved under 3dgs_model_path/wheat-head/(exp_name)
     out_dir = os.path.join(dataset.model_path, "wheat-head", exp_name)
-    os.makedirs(out_dir, exist_ok=True)
-    ply_dir = os.path.join(out_dir, "ply")
-    os.makedirs(ply_dir, exist_ok=True)
-    img_dir = os.path.join(out_dir, "img")
-    os.makedirs(img_dir, exist_ok=True)
-    count_dir = os.path.join(out_dir, "count")
-    os.makedirs(count_dir, exist_ok=True)
+    sub_dirs = ["ply", "img", "count"]
+    for sub_dir in sub_dirs:
+        os.makedirs(os.path.join(out_dir, sub_dir), exist_ok=True)
+    ply_dir, img_dir, count_dir = [os.path.join(out_dir, sub_dir) for sub_dir in sub_dirs]
 
     with open(f"{out_dir}/experiment.txt", "w") as file:
         file.write(f"exp_name {exp_name}\niou_threshold {iou_threshold}\n")

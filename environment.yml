@@ -25,6 +25,8 @@ dependencies:
   - tqdm
   - pyyaml
   - pip:
+      - rich
+      - gdown
       - wandb
       - ffmpeg-python
       - gitpython

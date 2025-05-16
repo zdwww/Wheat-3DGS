@@ -25,6 +25,9 @@ PLOT=plot_461
 SRC_PATH=${HOME_DIR}/Wheat-GS-data/${DATE}/${PLOT}
 MDL_PATH=${HOME_DIR}/Wheat-GS-output/${DATE}/${PLOT}
 
+EXP_NAME=run1
+
+# OG 3DGS reconstruction as initialization
 python -u train.py \
     -s $SRC_PATH \
     -m $MDL_PATH \
@@ -41,41 +44,34 @@ python -u render.py \
 python -u metrics.py \
     -m $MDL_PATH \
 
+# Run 3D segmentation on reconstruction
 python -u run_3d_seg.py \
     -s $SRC_PATH \
     -m $MDL_PATH \
     --resolution 1 \
     --eval \
     --iou_threshold 0.6 \
-    --exp_name run1
-    
-# python run_3d_seg_vis.py \
-#     -s ${HOME_DIR}/Wheat-GS-data-scaled/${DATE}/${PLOT} \
-#     -m ${HOME_DIR}/Wheat-GS-output-scaled/${DATE}/${PLOT} \
-#     --resolution 1 \
-#     --eval \
-#     --iou_threshold 0.7 \
-#     --exp_name run_vis
+    --exp_name ${EXP_NAME}
+
+# Evaluating 3D segmentation qualitively on both entire wheat field and individual wheat heads
+python -u render_360.py \
+    -s $SRC_PATH \
+    -m $MDL_PATH \
+    --render_type field \
+    --exp_name ${EXP_NAME} \
+    --n_frames 200 \
+    --framerate 20 
 
 python -u render_360.py \
     -s $SRC_PATH \
     -m $MDL_PATH \
+    --render_type head \
+    --exp_name ${EXP_NAME} \
+    
+python -u eval_wheatgs.py \
+    -s $SRC_PATH \
+    -m $MDL_PATH \
     --resolution 1 \
     --eval \
-    --which_wheat_head all \
-    --exp_name run1
-    
-# python -u eval_wheatgs.py \
-#     -s ${HOME_DIR}/Wheat-GS-data-scaled/${DATE}/${PLOT} \
-#     -m ${HOME_DIR}/Wheat-GS-output-scaled/${DATE}/${PLOT} \
-#     --resolution 1 \
-#     --eval \
-#     --exp_name rerun \
-#     --load_counts
-
-
-# for i in {461..467}; do
-#     PLOT="plot_${i}"
-#     python -u metrics.py -m ${HOME_DIR}/Wheat-GS-output-scaled/${DATE}/${PLOT}
-#     # python -u render.py -s ${HOME_DIR}/Wheat-GS-data-scaled/${DATE}/${PLOT} -m ${HOME_DIR}/Wheat-GS-output-scaled/${DATE}/${PLOT} --resolution 1 --eval --iteration 7000
-# done
+    --exp_name ${EXP_NAME} \
+    --load_counts

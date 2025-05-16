@@ -50,10 +50,10 @@ class ModelParams(ParamGroup):
         self._source_path = ""
         self._model_path = ""
         self._images = "images"
-        self._resolution = -1
+        self._resolution = 1 # default set to 1 to prevent downscaling in wheat3dgs
         self._white_background = False
         self.data_device = "cuda"
-        self.eval = False
+        self.eval = True
         super().__init__(parser, "Loading Parameters", sentinel)
 
     def extract(self, args):
