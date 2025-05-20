@@ -25,7 +25,31 @@ conda env create --file environment.yml
 conda activate wheat3dgs
 ```
 
-## Using Wheat3DGS
+## 🌾 Dataset
+[Data](https://drive.google.com/drive/folders/1DJPs_E8-93dCysYkQ0-uxHrAcZGTZiVh) used for Wheat3DGS and the baseline results for each plot (from 461 to 467) are structured as follows:
+```bash
+plot_46x/
+├── images/ # 36 images captured by FIP
+│   ├──FPWW036_SR0461_FIP2_cam_01.png 
+│   └──FPWW036_SR0461...
+├── sparse/ # camera intrinsics/extrinsics in COLMAP format
+├── yolosam.zip # please unzip to extract 2D masks formatted for Wheat3DGS
+│   ├──bboxes/ # YOLO bounding boxes per image (xyxy)
+│   │  ├──FPWW036_SR0461_1_FIP2_cam_01.pt
+│   │  └──...
+│   └──masks/ # 2D segmention mask corresponds to each box (per instance per image) 
+│   │  ├──FPWW036_SR0461_1_FIP2_cam_01_000.png
+│   │  ├──FPWW036_SR0461_1_FIP2_cam_01_001.png
+│   │  └──...
+│   ├──yolo_vis/ # for visualization purpose only
+│   └──sam_vis/ # for vis only
+├── semantics/ # combined 2D masks per image for FruitNeRF baseline
+├── manual_label/ # contains a randomly selected test view image with human-annotated wheat heads
+└── transforms.json # data in NeRF format
+```
+Please unzip `yolosam.zip` for each plot before running the pipeline. The image names are structured as follows. For example, in `FPWW036_SR0461_FIP2_cam_01.png`: `FPWW036_SR0461` is shared by all images from the same plot; `FIP2` indicates the batch ID, which may appear as `1_FIP2`, `6_FIP`, or `FIP2`; and the final element `01` is the camera ID, ranging from `01` to `12`. Our data preprocessing functions already handle the naming convention correctly. To get a clearer view of how the cameras are positioned in 3D space and how the train/test views are distributed, please run `vis_cam.py` for visualization.
+
+## 💻 Using Wheat3DGS
 
 ### Quick start
 
