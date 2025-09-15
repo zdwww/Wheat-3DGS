@@ -118,7 +118,7 @@ Our viewer is based on the implementation of [viser](https://github.com/nerfstud
 Our implementation is based on the original [3D Gaussian Splatting](https://github.com/graphdeco-inria/gaussian-splatting) and [FlashSplat](https://github.com/florinshen/FlashSplat). We thank the authors for their revolutionary work and open-source contributions.
 
 ## License
-This project is licensed under the MIT License - see the [LICENSE](LICENSE.md) file for details. Please note that the 3D Gaussian Splatting code included as a submodule is licensed under a different license, which can be found in the [LICENSE_3DGS](LICENSE_3DGS.md) file.
+This project is licensed under the MIT License - see the [LICENSE](LICENSE.md) file for details. Please note that the 3D Gaussian Splatting code base, however, is licensed under a different license, which can be found in the [LICENSE_3DGS](LICENSE_3DGS.md) file.
 
 ## Citation
 If you find our paper useful, please cite us:
