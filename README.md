@@ -115,14 +115,17 @@ To reproduce the baseline results presented in the paper (i.e. [FruitNeRF](https
 Our viewer is based on the implementation of [viser](https://github.com/nerfstudio-project/viser), allowing users to freely explore the reconstructed wheat field with overlaid 3D segmentation of wheat heads. Please refer to the scripts under folder `wheat3dgsviewer` for usage instructions.
 
 ## Acknowledgement
-Our implementation is based on the original [3D Gaussian Splatting](https://github.com/graphdeco-inria/gaussian-splatting) and [FlashSplat](https://github.com/florinshen/FlashSplat). We thank the authors for their revolutionary work and open-source contributions. 
+Our implementation is based on the original [3D Gaussian Splatting](https://github.com/graphdeco-inria/gaussian-splatting) and [FlashSplat](https://github.com/florinshen/FlashSplat). We thank the authors for their revolutionary work and open-source contributions.
+
+## License
+This project is licensed under the MIT License - see the [LICENSE](LICENSE.md) file for details. Please note that the 3D Gaussian Splatting code included as a submodule is licensed under a different license, which can be found in the [LICENSE_3DGS](LICENSE_3DGS.md) file.
 
 ## Citation
 If you find our paper useful, please cite us:
 ```bib
 @InProceedings{Zhang_Gajardo_2025_CVPR,
     author    = {Zhang, Daiwei and Gajardo, Joaquin and Medic, Tomislav and Katircioglu, Isinsu and Boss, Mike and Kirchgessner, Norbert and Walter, Achim and Roth, Lukas},
-    title     = {Wheat3DGS: In-field 3D Reconstruction, Instance Segmentation and Phenotyping of Wheat Heads with Gaussian Splatting},
+    title     = {Wheat{3DGS}: {I}n-field {3D} {R}econstruction, {I}nstance {S}egmentation and {P}henotyping of {W}heat {H}eads with {G}aussian {S}platting},
     booktitle = {Proceedings of the Computer Vision and Pattern Recognition Conference (CVPR) Workshops},
     month     = {June},
     year      = {2025},
