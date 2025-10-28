@@ -15,7 +15,7 @@
 - <b>[5/2/2025]</b>  Thx [Tomi](https://github.com/tomedic) for releasing code for wheat head morphology calculation at `wheatheadsmorphology`!
 - <b>[4/30/2025]</b> Initial code release 
 
-## 📝 TODO List
+## 📝 TODO List (est. mid December)
 - [ ] Share Docker setup
 - [ ] Script to to get initial masks
 - [ ] Data to ETH research collection including laser scans
