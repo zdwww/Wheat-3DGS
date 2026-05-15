@@ -5,7 +5,7 @@
 
 <div align="center"> 
 
-[Project Page](https://zdwww.github.io/wheat3dgs/) | [Paper](https://arxiv.org/abs/2504.06978) | [Data](https://drive.google.com/drive/folders/1DJPs_E8-93dCysYkQ0-uxHrAcZGTZiVh)
+[Project Page](https://joaquin-gajardo.github.io/wheat3dgs/) | [Paper](https://openaccess.thecvf.com/content/CVPR2025W/V4A/html/Zhang_Wheat3DGS_In-field_3D_Reconstruction_Instance_Segmentation_and_Phenotyping_of_Wheat_CVPRW_2025_paper.html) |  [Arxiv](https://arxiv.org/abs/2504.06978) | [Data](https://drive.google.com/drive/folders/1DJPs_E8-93dCysYkQ0-uxHrAcZGTZiVh)
 
   <img src="assets/teaser.png" width="400">
 </div>
@@ -15,7 +15,7 @@
 - <b>[5/2/2025]</b>  Thx [Tomi](https://github.com/tomedic) for releasing code for wheat head morphology calculation at `wheatheadsmorphology`!
 - <b>[4/30/2025]</b> Initial code release 
 
-## 📝 TODO List (est. mid December)
+## 📝 TODO List
 - [ ] Share Docker setup
 - [ ] Script to to get initial masks
 - [ ] Data to ETH research collection including laser scans
