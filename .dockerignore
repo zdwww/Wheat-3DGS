@@ -1,0 +1,8 @@
+.git
+**/build
+**/*.egg-info
+data
+dataset
+output
+outputs
+results
