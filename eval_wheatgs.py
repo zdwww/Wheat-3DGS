@@ -63,9 +63,9 @@ def opt_w_masks(viewpoint_cam, gaussians, pipe, background, obj_masks, obj_num=N
     used_count = render_pkg["used_count"].detach().cpu()
     return used_count, obj_num
 
-def render_set(model_path, name, views, gaussians, pipeline, background, all_obj_labels):
-    render_path = os.path.join(model_path, name, "overlay")
-    seg_path = os.path.join(model_path, name, "segmentation")
+def render_set(model_path, name, exp_name, views, gaussians, pipeline, background, all_obj_labels):
+    render_path = os.path.join(model_path, "wheat-head", exp_name, "eval", name, "overlay")
+    seg_path = os.path.join(model_path, "wheat-head", exp_name, "eval", name, "segmentation")
 
     makedirs(render_path, exist_ok=True)
     makedirs(seg_path, exist_ok=True)
@@ -124,8 +124,8 @@ def render_sets(dataset : ModelParams, pipeline : PipelineParams, exp_name, skip
         all_obj_labels = multi_instance_opt(all_counts, slackness)
         ########### End of FlashSplat Optimization ########### 
         if not skip_train:
-            render_set(dataset.model_path, "train", scene.getTrainCameras(), gaussians, pipeline, background, all_obj_labels)
-        render_set(dataset.model_path, "test", scene.getTestCameras(), gaussians, pipeline, background, all_obj_labels)
+            render_set(dataset.model_path, "train", exp_name, scene.getTrainCameras(), gaussians, pipeline, background, all_obj_labels)
+        render_set(dataset.model_path, "test", exp_name, scene.getTestCameras(), gaussians, pipeline, background, all_obj_labels)
 
 if __name__ == "__main__":
     # Set up command line argument parser

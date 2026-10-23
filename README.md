@@ -100,7 +100,7 @@ Results will be saved as a video `<model_path>/wheat_head/<exp_name>/wheat_field
 ```
 python eval_wheatgs.py -s <dataset_path> -m <model_path> --exp_name run1 --skip_train --load_counts
 ```
-Rendered 2D segmentation will be saved under `model_path/test/ours_<iteration>/segmentation` and `overlay`, where they can be used for metric calculation.
+Rendered 2D segmentation will be saved under `model_path/wheat-head/<exp_name>/eval/test/segmentation` and `overlay`, next to the 3D segmentation results, where they can be used for metric calculation.
 
 ## Baseline
 To reproduce the baseline results presented in the paper (i.e. [FruitNeRF](https://github.com/meyerls/FruitNeRF)), please refer to the original repository and the scripts in the `scripts` folder.
