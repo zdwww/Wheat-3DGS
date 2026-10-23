@@ -179,7 +179,13 @@ def update_processed_masks(processed_masks, new_mask_paths):
 
 ########### End of Find & Match helper methods ###########
         
-def training(dataset, opt, pipe, load_iteration, exp_name, iou_threshold):
+def training(dataset, opt, pipe, load_iteration, exp_name, iou_threshold, seed=0):
+    # The order of the seed masks (shuffled below) drives the greedy match-and-fine-tune, so fix it
+    random.seed(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    torch.cuda.manual_seed_all(seed)
+
     # All 3DSeg results will be saved under 3dgs_model_path/wheat-head/(exp_name)
     out_dir = os.path.join(dataset.model_path, "wheat-head", exp_name)
     sub_dirs = ["ply", "img", "count"]
@@ -188,7 +194,7 @@ def training(dataset, opt, pipe, load_iteration, exp_name, iou_threshold):
     ply_dir, img_dir, count_dir = [os.path.join(out_dir, sub_dir) for sub_dir in sub_dirs]
 
     with open(f"{out_dir}/experiment.txt", "w") as file:
-        file.write(f"exp_name {exp_name}\niou_threshold {iou_threshold}\n")
+        file.write(f"exp_name {exp_name}\niou_threshold {iou_threshold}\nseed {seed}\n")
     
     results = open(os.path.join(out_dir, 'results.csv'), mode='w', newline='')
     writer = csv.writer(results)
@@ -402,8 +408,9 @@ if __name__ == "__main__":
     parser.add_argument('--load_iteration', type=str, default="-1")
     parser.add_argument("--exp_name", type=str, help="Exp name")
     parser.add_argument("--iou_threshold", type=float, default=0.5, help="IOU threshold for matching")
+    parser.add_argument("--seed", type=int, default=0, help="Random seed for the processing order of the 2D masks")
     args = parser.parse_args(sys.argv[1:])
     print("Optimizing " + args.model_path)
 
     training(lp.extract(args), op.extract(args), pp.extract(args), 
-             args.load_iteration, args.exp_name, args.iou_threshold)
+             args.load_iteration, args.exp_name, args.iou_threshold, args.seed)
