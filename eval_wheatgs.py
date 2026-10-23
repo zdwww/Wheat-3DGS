@@ -19,6 +19,7 @@ from os import makedirs
 from gaussian_renderer import render
 import torchvision
 from utils.general_utils import safe_state
+from utils.system_utils import seg_load_iteration
 from argparse import ArgumentParser
 from arguments import ModelParams, PipelineParams, get_combined_args
 from gaussian_renderer import GaussianModel
@@ -82,10 +83,11 @@ def render_set(model_path, name, exp_name, views, gaussians, pipeline, backgroun
         image = Image.fromarray(binary_array.numpy(), mode="L")
         image.save(os.path.join(seg_path, f"{view.image_name}.png"))
 
-def render_sets(dataset : ModelParams, pipeline : PipelineParams, exp_name, skip_train, load_counts):
+def render_sets(dataset : ModelParams, pipeline : PipelineParams, exp_name, skip_train, load_counts, iteration=-1):
     with torch.no_grad():
         gaussians = GaussianModel(dataset.sh_degree)
-        scene = Scene(dataset, gaussians, load_iteration=-1, shuffle=False) # Load max iteration
+        load_iteration = seg_load_iteration(dataset.model_path, exp_name, iteration) # the iteration the 3D segmentation used
+        scene = Scene(dataset, gaussians, load_iteration=load_iteration, shuffle=False)
         ply_path = os.path.join(dataset.model_path, "wheat-head", exp_name, "gaussians.ply")
         # gaussians.load_ply(ply_path)
         print(f"Gaussians successfully loaded from {ply_path}")
@@ -135,6 +137,7 @@ if __name__ == "__main__":
     parser.add_argument("--exp_name", type=str, help="Exp name")
     parser.add_argument("--skip_train", action="store_true")
     parser.add_argument("--load_counts", action="store_true")
+    parser.add_argument("--iteration", default=-1, type=int, help="iteration of OG 3DGS to load, default: the one the 3D segmentation used")
     args = get_combined_args(parser)
     print(f"Rendering {args.model_path}/{args.exp_name}")
-    render_sets(model.extract(args), pipeline.extract(args), args.exp_name, args.skip_train, args.load_counts)
+    render_sets(model.extract(args), pipeline.extract(args), args.exp_name, args.skip_train, args.load_counts, args.iteration)

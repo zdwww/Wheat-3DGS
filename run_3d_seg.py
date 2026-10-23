@@ -201,6 +201,8 @@ def training(dataset, opt, pipe, load_iteration, exp_name, iou_threshold):
         pass
     print(f"Load iteration {load_iteration}, Resolution {dataset.resolution}")
     scene = Scene(dataset, gaussians, load_iteration=load_iteration, shuffle=False)
+    with open(f"{out_dir}/experiment.txt", "a") as file:
+        file.write(f"load_iteration {scene.loaded_iter}\n") # actual iteration, -1 resolved to the max
     gaussians.training_setup(opt)
     print(f"Loaded point cloud size: {len(gaussians.get_xyz)}")
 
