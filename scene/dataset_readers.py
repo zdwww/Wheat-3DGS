@@ -162,14 +162,14 @@ def readColmapSceneInfo(path, images, eval, llffhold=8, normalize=False):
     # Read images, bounding boxes and segmentation masks
     reading_dir = "images" if images == None else images
     
-    bboxes_dir = os.path.join(path, "bboxes")
-    if not os.path.exists(bboxes_dir):
-        print("No directory of saved bounding boxes found!")
-        bboxes_dir = None
-    masks_dir = os.path.join(path, "masks")
-    if not os.path.exists(masks_dir):
-        print("No directory of saved segmentation masks found!")
-        masks_dir = None
+    # YOLO-SAM boxes and masks from yolosam.zip, unzipped in the plot folder or into a yolosam/ subfolder
+    bboxes_dir, masks_dir = None, None
+    for d in [path, os.path.join(path, "yolosam")]:
+        if os.path.isdir(os.path.join(d, "bboxes")) and os.path.isdir(os.path.join(d, "masks")):
+            bboxes_dir, masks_dir = os.path.join(d, "bboxes"), os.path.join(d, "masks")
+            break
+    if bboxes_dir is None:
+        print(f"No bboxes/ and masks/ found in {path} or {path}/yolosam (unzip yolosam.zip there; only needed for 3D segmentation)")
     
     cam_infos_unsorted = readColmapCameras(cam_extrinsics=cam_extrinsics, 
                                            cam_intrinsics=cam_intrinsics, 

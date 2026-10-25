@@ -152,3 +152,11 @@ def update_processed_masks(processed_masks, new_mask_paths):
     return processed_masks
 
 ########### End of Find & Match helper methods ###########
+
+def check_yolosam(viewpoint_stack, source_path):
+    """Fail early with a clear message if the YOLO-SAM boxes/masks of the training views (yolosam.zip) are missing."""
+    missing = [cam.image_name for cam in viewpoint_stack if cam.bbox_path is None or not os.path.exists(cam.bbox_path)]
+    if missing:
+        raise FileNotFoundError(
+            f"No YOLO-SAM bounding boxes for {len(missing)}/{len(viewpoint_stack)} training views (e.g. {missing[0]}). "
+            f"Unzip yolosam.zip in {source_path}, so that {source_path}/bboxes and {source_path}/masks exist.")

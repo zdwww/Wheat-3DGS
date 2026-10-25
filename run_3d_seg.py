@@ -23,6 +23,7 @@ from utils.seg_utils import (
     counts_to_obj_labels,
     find_match,
     update_processed_masks,
+    check_yolosam,
 )
 CONSOLE = Console()
 
@@ -82,6 +83,7 @@ def training(dataset, opt, pipe, load_iteration, exp_name, iou_threshold, seed=0
     bg_color = [1, 1, 1] if dataset.white_background else [0, 0, 0]
     background = torch.tensor(bg_color, dtype=torch.float32, device="cuda")
     viewpoint_stack = scene.getTrainCameras().copy()
+    check_yolosam(viewpoint_stack, dataset.source_path)
     viewpoint_stack_eval = scene.getTestCameras().copy()
 
     print(f"Length of viewpoint stack: {len(viewpoint_stack)}")

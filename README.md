@@ -37,7 +37,7 @@ plot_46x/
 │   ├──FPWW036_SR0461_FIP2_cam_01.png 
 │   └──FPWW036_SR0461...
 ├── sparse/ # camera intrinsics/extrinsics in COLMAP format
-├── yolosam.zip # please unzip to extract 2D masks formatted for Wheat3DGS
+├── yolosam.zip # 2D masks formatted for Wheat3DGS, unzip in plot_46x/ to get the folders below
 │   ├──bboxes/ # YOLO bounding boxes per image (xyxy)
 │   │  ├──FPWW036_SR0461_1_FIP2_cam_01.pt
 │   │  └──...
@@ -51,7 +51,7 @@ plot_46x/
 ├── manual_label/ # contains a randomly selected test view image with human-annotated wheat heads
 └── transforms.json # data in NeRF format
 ```
-Please unzip `yolosam.zip` for each plot before running the pipeline. The image names are structured as follows. For example, in `FPWW036_SR0461_FIP2_cam_01.png`: `FPWW036_SR0461` is shared by all images from the same plot; `FIP2` indicates the batch ID, which may appear as `1_FIP2`, `6_FIP`, or `FIP2`; and the final element `01` is the camera ID, ranging from `01` to `12`. Our data preprocessing functions already handle the naming convention correctly. To get a clearer view of how the cameras are positioned in 3D space and how the train/test views are distributed, please run `vis_cam.py` for visualization.
+Please unzip `yolosam.zip` for each plot before running the 3D segmentation, inside the plot folder (`cd plot_46x && unzip yolosam.zip`), so that `bboxes/` and `masks/` end up directly in `plot_46x/` (a `plot_46x/yolosam/` subfolder, as created by some GUI unzip tools, also works). The image names are structured as follows. For example, in `FPWW036_SR0461_FIP2_cam_01.png`: `FPWW036_SR0461` is shared by all images from the same plot; `FIP2` indicates the batch ID, which may appear as `1_FIP2`, `6_FIP`, or `FIP2`; and the final element `01` is the camera ID, ranging from `01` to `12`. Our data preprocessing functions already handle the naming convention correctly. To get a clearer view of how the cameras are positioned in 3D space and how the train/test views are distributed, please run `vis_cam.py` for visualization.
 
 ## 💻 Using Wheat3DGS
 
