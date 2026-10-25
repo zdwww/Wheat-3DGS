@@ -462,14 +462,15 @@ class GaussianModel:
         self.xyz_gradient_accum[update_filter] += torch.norm(viewspace_point_tensor.grad[update_filter,:2], dim=-1, keepdim=True)
         self.denom[update_filter] += 1
 
-    def reset_label(self, obj_used_mask, set_which_object_to=None, overlap_threshold=0.8):
+    def reset_label(self, obj_used_mask, set_which_object_to=None, overlap_threshold=0.8, merge=True):
         """
         If largely overlap with previous set, 0.8 * identified Gaussians already belonged to another wheat head
-        if new > old 
+        if new > old
+        merge=False: plain overwrite, never merge into a previous wheat head (as in the paper's version, run_3d_seg_paper.py)
         """
         nonzero_count = torch.count_nonzero(self._which_object[obj_used_mask]).item()
         overlap_ratio = 0.0
-        if nonzero_count > 0:
+        if merge and nonzero_count > 0:
             overlap_ratio = nonzero_count / torch.count_nonzero(obj_used_mask).item()
             print(f"[{nonzero_count} / {torch.count_nonzero(obj_used_mask).item()}] Gaussians already belong to other wheat heads.")
             overlap_count = torch.unique(self._which_object[obj_used_mask], return_counts=True)
