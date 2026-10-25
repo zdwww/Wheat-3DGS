@@ -117,8 +117,10 @@ def render_sets(dataset : ModelParams, pipeline : PipelineParams, exp_name, skip
                 gc.collect()
                 torch.cuda.empty_cache()
         else:
-            counts_pth = os.path.join(dataset.model_path, "wheat-head", exp_name, "all_counts.pt")
-            assert os.path.exists(counts_pth)
+            # saved by render_360.py --render_type field (same computation as above)
+            counts_pth = os.path.join(dataset.model_path, "wheat-head", exp_name, "all_counts.pth")
+            if not os.path.exists(counts_pth):
+                raise FileNotFoundError(f"{counts_pth} not found: run render_360.py --render_type field first, or omit --load_counts")
             all_counts = torch.load(counts_pth).cuda()
             print(f"Load all counts shape {all_counts.shape}")
 
