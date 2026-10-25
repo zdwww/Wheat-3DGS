@@ -10,7 +10,6 @@
 #
 
 import os
-import wandb
 import torch
 from random import randint
 from utils.loss_utils import l1_loss, ssim
@@ -29,11 +28,13 @@ try:
 except ImportError:
     TENSORBOARD_FOUND = False
 
-def training(dataset, opt, pipe, testing_iterations, saving_iterations, checkpoint_iterations, checkpoint, debug_from):
+def training(dataset, opt, pipe, testing_iterations, saving_iterations, checkpoint_iterations, checkpoint, debug_from, use_wandb=False):
 
-    wandb.init(project="Wheat-GS", name=dataset.source_path.split("/")[-1], dir="/cluster/scratch/daizhang/wandb")
     first_iter = 0
     tb_writer = prepare_output_and_logger(dataset)
+    if use_wandb: # optional logging to Weights & Biases (needs a wandb login)
+        import wandb
+        wandb.init(project="Wheat-GS", name=dataset.source_path.split("/")[-1], dir=dataset.model_path)
     gaussians = GaussianModel(dataset.sh_degree)
     scene = Scene(dataset, gaussians)
     gaussians.training_setup(opt)
@@ -114,7 +115,8 @@ def training(dataset, opt, pipe, testing_iterations, saving_iterations, checkpoi
                 gaussians.optimizer.step()
                 gaussians.optimizer.zero_grad(set_to_none = True)
                 
-            wandb.log({'step': iteration, 'loss': loss.item(), 'num points': len(gaussians.get_xyz)})
+            if use_wandb:
+                wandb.log({'step': iteration, 'loss': loss.item(), 'num points': len(gaussians.get_xyz)})
             
             if (iteration in checkpoint_iterations):
                 print("\n[ITER {}] Saving Checkpoint".format(iteration))
@@ -192,6 +194,7 @@ if __name__ == "__main__":
     parser.add_argument("--quiet", action="store_true")
     parser.add_argument("--checkpoint_iterations", nargs="+", type=int, default=[7_000, 15_000])
     parser.add_argument("--start_checkpoint", type=str, default = None)
+    parser.add_argument("--wandb", action="store_true", help="Log training to Weights & Biases")
     args = parser.parse_args(sys.argv[1:])
     args.save_iterations.append(args.iterations)
     
@@ -202,7 +205,7 @@ if __name__ == "__main__":
 
     # Start GUI server, configure and run training
     torch.autograd.set_detect_anomaly(args.detect_anomaly)
-    training(lp.extract(args), op.extract(args), pp.extract(args), args.test_iterations, args.save_iterations, args.checkpoint_iterations, args.start_checkpoint, args.debug_from)
+    training(lp.extract(args), op.extract(args), pp.extract(args), args.test_iterations, args.save_iterations, args.checkpoint_iterations, args.start_checkpoint, args.debug_from, args.wandb)
 
     # All done
     print("\nTraining complete.")
