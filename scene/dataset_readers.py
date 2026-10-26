@@ -147,7 +147,7 @@ def storePly(path, xyz, rgb):
     ply_data = PlyData([vertex_element])
     ply_data.write(path)
 
-def readColmapSceneInfo(path, images, eval, llffhold=8, normalize=False):
+def readColmapSceneInfo(path, images, eval, llffhold=8, normalize=False, masks_dir=""):
     try:
         cameras_extrinsic_file = os.path.join(path, "sparse/0", "images.bin")
         cameras_intrinsic_file = os.path.join(path, "sparse/0", "cameras.bin")
@@ -162,14 +162,16 @@ def readColmapSceneInfo(path, images, eval, llffhold=8, normalize=False):
     # Read images, bounding boxes and segmentation masks
     reading_dir = "images" if images == None else images
     
-    # YOLO-SAM boxes and masks from yolosam.zip, unzipped in the plot folder or into a yolosam/ subfolder
+    # Boxes and masks from --masks_dir (a subfolder of the plot or an absolute path), else from yolosam.zip,
+    # unzipped in the plot folder or into a yolosam/ subfolder
+    search_dirs = [os.path.join(path, masks_dir)] if masks_dir else [path, os.path.join(path, "yolosam")]
     bboxes_dir, masks_dir = None, None
-    for d in [path, os.path.join(path, "yolosam")]:
+    for d in search_dirs:
         if os.path.isdir(os.path.join(d, "bboxes")) and os.path.isdir(os.path.join(d, "masks")):
             bboxes_dir, masks_dir = os.path.join(d, "bboxes"), os.path.join(d, "masks")
             break
     if bboxes_dir is None:
-        print(f"No bboxes/ and masks/ found in {path} or {path}/yolosam (unzip yolosam.zip there; only needed for 3D segmentation)")
+        print(f"No bboxes/ and masks/ found in {' or '.join(search_dirs)} (only needed for 3D segmentation)")
     
     cam_infos_unsorted = readColmapCameras(cam_extrinsics=cam_extrinsics, 
                                            cam_intrinsics=cam_intrinsics, 

@@ -159,4 +159,5 @@ def check_yolosam(viewpoint_stack, source_path):
     if missing:
         raise FileNotFoundError(
             f"No YOLO-SAM bounding boxes for {len(missing)}/{len(viewpoint_stack)} training views (e.g. {missing[0]}). "
-            f"Unzip yolosam.zip in {source_path}, so that {source_path}/bboxes and {source_path}/masks exist.")
+            f"Unzip yolosam.zip in {source_path}, so that {source_path}/bboxes and {source_path}/masks exist, "
+            f"or pass --masks_dir <folder with bboxes/ and masks/>.")

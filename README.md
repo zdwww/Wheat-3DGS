@@ -76,7 +76,12 @@ You can also run `render.py` and `metrics.py` with the same input arguments to e
 ```
 python scripts/generate_masks.py -s <dataset_path> [<dataset_path> ...]
 ```
-This writes `bboxes/` and `masks/` into each plot folder (`--vis` also saves `yolo_vis/` and `sam_vis/`). The defaults (`--conf 0.25`, `--img_size 640`) reproduce the provided masks. YOLOv5 is included as a submodule (`submodules/yolov5`, tag `v7.0`, [AGPL-3.0](https://github.com/ultralytics/yolov5/blob/master/LICENSE)) and needs `seaborn` and `thop`, plus [`segment-anything`](https://github.com/facebookresearch/segment-anything) for SAM (all included in the Docker image). 
+This writes `bboxes/` and `masks/` into each plot folder (or into another folder with `--out`, e.g. to keep several mask sets side by side; select one with `--masks_dir`, see Step 3). `--vis` also saves `yolo_vis/` and `sam_vis/`. The defaults (`--conf 0.25`, `--img_size 640`) reproduce the provided masks. YOLOv5 is included as a submodule (`submodules/yolov5`, tag `v7.0`, [AGPL-3.0](https://github.com/ultralytics/yolov5/blob/master/LICENSE)) and needs `seaborn` and `thop`, plus [`segment-anything`](https://github.com/facebookresearch/segment-anything) for SAM (all included in the Docker image). 
+
+#### Use your own 2D masks
+To use your own 2D masks instead (e.g. from another segmentation model), put them in a folder with this layout and pass it to the 3D segmentation with `--masks_dir` (see Step 3):
+- `masks/<image_name>_000.png`, `_001.png`, ...: one binary mask per object (pixels > 0 = object), same size as the image.
+- `bboxes/<image_name>.pt`: a `torch` float tensor of shape N × 4 with one box `(x1, y1, x2, y2)` in image pixels per mask, row *i* belonging to mask `_<i>` (e.g. the outer box of each mask).
 
 **Step 3.** To run 3D segmentation on a wheat plot to identify and associate decoupled 2D wheat heads. To reproduce the paper's results (Table 2), use `run_3d_seg_paper.py`, the algorithm the paper's results were produced with:
 ```
@@ -92,6 +97,7 @@ python run_3d_seg.py -s <dataset_path> -m <model_path> --iou_threshold 0.6 --exp
 | `--num_match` | `int` | `run_3d_seg_paper.py` only: number of views (including the starting view) a wheat head must be matched in. Paper: 5 (default). |
 | `--seed` | `int` | Random seed for the order in which the 2D masks are processed. The same seed gives the same result. |
 | `--exp_name` | `str` | The experiment name used to create the folder for saving all results under `<model_path>/wheat_head`.
+| `--masks_dir` | `str` | Folder containing `bboxes/` and `masks/`, as a subfolder of `<dataset_path>` (e.g. `yolosam_1280`) or an absolute path. Default: `<dataset_path>` itself, or `<dataset_path>/yolosam`. |
 
 **Step 4.** To generate a video rotating around the reconstructed wheat field for **qualitative** evaluation of the 3D segmentation results (as shown on our project page), run:
 ```

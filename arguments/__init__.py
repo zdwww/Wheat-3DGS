@@ -54,6 +54,7 @@ class ModelParams(ParamGroup):
         self._white_background = False
         self.data_device = "cuda"
         self.eval = True
+        self.masks_dir = "" # folder with bboxes/ and masks/: a subfolder of the plot or an absolute path (default: the plot folder or <plot>/yolosam)
         super().__init__(parser, "Loading Parameters", sentinel)
 
     def extract(self, args):
