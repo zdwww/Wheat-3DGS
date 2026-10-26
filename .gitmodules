@@ -7,3 +7,6 @@
 [submodule "submodules/flashsplat-rasterization"]
 	path = submodules/flashsplat-rasterization
 	url = https://github.com/florinshen/flashsplat-rasterization.git
+[submodule "submodules/yolov5"]
+	path = submodules/yolov5
+	url = https://github.com/ultralytics/yolov5.git

@@ -29,6 +29,10 @@ RUN pip install --no-cache-dir \
         ./submodules/diff-gaussian-rasterization \
         ./submodules/flashsplat-rasterization
 
+# 2D mask generation (scripts/generate_masks.py): YOLOv5 v7.0 (submodule) + SAM
+RUN pip install --no-cache-dir seaborn thop \
+        "segment-anything @ git+https://github.com/facebookresearch/segment-anything.git@dca509fe793f601edb92606367a655c15ac00fdf"
+
 COPY . .
 
 CMD ["/bin/bash"]
