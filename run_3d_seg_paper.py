@@ -2,7 +2,8 @@
 3D wheat-head segmentation as used for the paper's results (Table 2): the "pipeline 1" algorithm of
 run_3d_seg_new.py at commit 75f8854, ported to the current helpers. run_3d_seg.py is a later version of it.
 
-Each 2D mask (in a seeded random order) is lifted to 3D with FlashSplat (only Gaussians above the mean height),
+Each 2D mask (in a seeded random order) is lifted to 3D with FlashSplat (only Gaussians above the mean height,
+unless --no_height_filter),
 rendered into all other training views and matched to the YOLO/SAM mask with the largest IoU there. If at least
 --num_match views (including the seed view) match with IoU > --iou_threshold, the head is solved once from all
 matched masks and its Gaussians are assigned to a new head id, overwriting earlier assignments.
@@ -32,7 +33,7 @@ from utils.seg_utils import opt_label_w_seg, counts_to_obj_labels, find_match, u
 
 CONSOLE = Console()
 
-def training(dataset, opt, pipe, load_iteration, exp_name, iou_threshold, num_match, seed=0):
+def training(dataset, opt, pipe, load_iteration, exp_name, iou_threshold, num_match, seed=0, height_filter=True):
     # The order of the seed masks (shuffled below) drives the greedy matching, so fix it
     random.seed(seed)
     np.random.seed(seed)
@@ -47,7 +48,7 @@ def training(dataset, opt, pipe, load_iteration, exp_name, iou_threshold, num_ma
     ply_dir, img_dir = [os.path.join(out_dir, sub_dir) for sub_dir in sub_dirs]
 
     with open(f"{out_dir}/experiment.txt", "w") as file:
-        file.write(f"exp_name {exp_name}\nalgorithm paper\niou_threshold {iou_threshold}\nnum_match {num_match}\nseed {seed}\n")
+        file.write(f"exp_name {exp_name}\nalgorithm paper\niou_threshold {iou_threshold}\nnum_match {num_match}\nseed {seed}\nheight_filter {height_filter}\n")
 
     results = open(os.path.join(out_dir, 'results.csv'), mode='w', newline='')
     writer = csv.writer(results)
@@ -65,10 +66,10 @@ def training(dataset, opt, pipe, load_iteration, exp_name, iou_threshold, num_ma
     gaussians.training_setup(opt)
     print(f"Loaded point cloud size: {len(gaussians.get_xyz)}")
 
-    # Only Gaussians above the mean height are lifted from the seed mask (excludes the ground)
+    # Only Gaussians above the mean height are lifted from the seed mask (excludes the ground; off with --no_height_filter)
     z_mean = torch.mean(gaussians.get_xyz.cpu()[:, 2])
     print(f"All Gaussians z_min: {torch.min(gaussians.get_xyz.cpu()[:, 2])} zmax: {torch.max(gaussians.get_xyz.cpu()[:, 2])}")
-    pts_filter = (gaussians.get_xyz.cpu()[:, 2] < z_mean)
+    pts_filter = (gaussians.get_xyz.cpu()[:, 2] < z_mean) if height_filter else None
 
     bg_color = [1, 1, 1] if dataset.white_background else [0, 0, 0]
     background = torch.tensor(bg_color, dtype=torch.float32, device="cuda")
@@ -116,7 +117,7 @@ def training(dataset, opt, pipe, load_iteration, exp_name, iou_threshold, num_ma
         all_counts = opt_label_w_seg(gaussians, [this_viewpoint_cam], [this_mask_path], pipe, background, pts_filter)
         all_obj_labels = counts_to_obj_labels(all_counts)
         if torch.sum(all_obj_labels, dim=1)[1] == 0:
-            print(f"Can't identify any Gaussians above average height for this mask: {this_mask_name}), PASS")
+            print(f"Can't identify any Gaussians {'above average height ' if height_filter else ''}for this mask: {this_mask_name}), PASS")
             continue
         obj_used_mask = (all_obj_labels[1]).bool()
 
@@ -193,8 +194,9 @@ if __name__ == "__main__":
     parser.add_argument("--iou_threshold", type=float, default=0.6, help="IOU threshold for matching")
     parser.add_argument("--num_match", type=int, default=5, help="Num of matched views (incl. the seed view) required for a wheat head")
     parser.add_argument("--seed", type=int, default=0, help="Random seed for the processing order of the 2D masks")
+    parser.add_argument("--no_height_filter", action="store_true", help="lift seed masks to all Gaussians, not only those above the mean height (the default is meant for wheat heads)")
     args = parser.parse_args(sys.argv[1:])
     print("Optimizing " + args.model_path)
 
     training(lp.extract(args), op.extract(args), pp.extract(args),
-             args.load_iteration, args.exp_name, args.iou_threshold, args.num_match, args.seed)
+             args.load_iteration, args.exp_name, args.iou_threshold, args.num_match, args.seed, not args.no_height_filter)

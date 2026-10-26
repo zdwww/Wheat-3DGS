@@ -43,7 +43,7 @@ def find_new_mask_dir(img_dir, num_wheat_head):
     return letter_suffix
 
         
-def training(dataset, opt, pipe, load_iteration, exp_name, iou_threshold, seed=0):
+def training(dataset, opt, pipe, load_iteration, exp_name, iou_threshold, seed=0, height_filter=True):
     # The order of the seed masks (shuffled below) drives the greedy match-and-fine-tune, so fix it
     random.seed(seed)
     np.random.seed(seed)
@@ -58,7 +58,7 @@ def training(dataset, opt, pipe, load_iteration, exp_name, iou_threshold, seed=0
     ply_dir, img_dir, count_dir = [os.path.join(out_dir, sub_dir) for sub_dir in sub_dirs]
 
     with open(f"{out_dir}/experiment.txt", "w") as file:
-        file.write(f"exp_name {exp_name}\niou_threshold {iou_threshold}\nseed {seed}\n")
+        file.write(f"exp_name {exp_name}\niou_threshold {iou_threshold}\nseed {seed}\nheight_filter {height_filter}\n")
     
     results = open(os.path.join(out_dir, 'results.csv'), mode='w', newline='')
     writer = csv.writer(results)
@@ -76,9 +76,10 @@ def training(dataset, opt, pipe, load_iteration, exp_name, iou_threshold, seed=0
     gaussians.training_setup(opt)
     print(f"Loaded point cloud size: {len(gaussians.get_xyz)}")
 
+    # Only Gaussians above the mean height are lifted from the seed mask (excludes the ground; off with --no_height_filter)
     z_mean = torch.mean(gaussians.get_xyz.cpu()[:, 2])
     print(f"All Gaussians z_min: {torch.min(gaussians.get_xyz.cpu()[:, 2])} zmax: {torch.max(gaussians.get_xyz.cpu()[:, 2])}")
-    pts_filter = (gaussians.get_xyz.cpu()[:, 2] < z_mean)
+    pts_filter = (gaussians.get_xyz.cpu()[:, 2] < z_mean) if height_filter else None
 
     bg_color = [1, 1, 1] if dataset.white_background else [0, 0, 0]
     background = torch.tensor(bg_color, dtype=torch.float32, device="cuda")
@@ -136,7 +137,7 @@ def training(dataset, opt, pipe, load_iteration, exp_name, iou_threshold, seed=0
         all_counts = opt_label_w_seg(gaussians, [this_viewpoint_cam], [this_mask_path], pipe, background, pts_filter)
         all_obj_labels = counts_to_obj_labels(all_counts)
         if torch.sum(all_obj_labels, dim=1)[1] == 0:
-            print(f"Can't identify any Gaussians above average height for this mask: {this_mask_name}), PASS")
+            print(f"Can't identify any Gaussians {'above average height ' if height_filter else ''}for this mask: {this_mask_name}), PASS")
             continue
         obj_used_mask = (all_obj_labels[1]).bool()
 
@@ -274,8 +275,9 @@ if __name__ == "__main__":
     parser.add_argument("--exp_name", type=str, help="Exp name")
     parser.add_argument("--iou_threshold", type=float, default=0.5, help="IOU threshold for matching")
     parser.add_argument("--seed", type=int, default=0, help="Random seed for the processing order of the 2D masks")
+    parser.add_argument("--no_height_filter", action="store_true", help="lift seed masks to all Gaussians, not only those above the mean height (the default is meant for wheat heads)")
     args = parser.parse_args(sys.argv[1:])
     print("Optimizing " + args.model_path)
 
     training(lp.extract(args), op.extract(args), pp.extract(args), 
-             args.load_iteration, args.exp_name, args.iou_threshold, args.seed)
+             args.load_iteration, args.exp_name, args.iou_threshold, args.seed, not args.no_height_filter)

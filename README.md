@@ -97,6 +97,7 @@ python run_3d_seg.py -s <dataset_path> -m <model_path> --iou_threshold 0.6 --exp
 | `--num_match` | `int` | `run_3d_seg_paper.py` only: number of views (including the starting view) a wheat head must be matched in. Paper: 5 (default). |
 | `--seed` | `int` | Random seed for the order in which the 2D masks are processed. The same seed gives the same result. |
 | `--exp_name` | `str` | The experiment name used to create the folder for saving all results under `<model_path>/wheat_head`.
+| `--no_height_filter` | flag | Lift each seed mask to all Gaussians, not only those above the mean height of the scene (the default removes the ground and is meant for wheat heads; use this for other objects). |
 | `--masks_dir` | `str` | Folder containing `bboxes/` and `masks/`, as a subfolder of `<dataset_path>` (e.g. `yolosam_1280`) or an absolute path. Default: `<dataset_path>` itself, or `<dataset_path>/yolosam`. |
 
 **Step 4.** To generate a video rotating around the reconstructed wheat field for **qualitative** evaluation of the 3D segmentation results (as shown on our project page), run:
