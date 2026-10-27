@@ -64,6 +64,25 @@ sbatch run_wheat_3dgs.sh
 
 ### Step-by-step instructions
 
+<details>
+<summary><b>Step 0 (Optional).</b> Camera poses from your own images with Agisoft Metashape (click to expand)</summary>
+
+Our dataset already contains the undistorted images and camera poses (`images/`, `sparse/`). To make them from your own images, `scripts/preprocessing/` aligns and georeferences the cameras in [Agisoft Metashape](https://www.agisoft.com/) (needs a Metashape Professional license and its Python module from the [downloads page](https://www.agisoft.com/downloads/installer/)):
+```bash
+# marker files (one per plot) from a GNSS survey of the coded targets, CSV lines <plot>-<target>,x,y,z
+python scripts/preprocessing/gnss_to_markers.py --gnss_csv <survey.csv> --out <markers_dir>
+# align, georeference and export as COLMAP (undistorted pinhole, principal point at the image centre), in LV95 by default
+python scripts/preprocessing/metashape_to_colmap.py --images <raw_images> --markers <markers_dir>/plot_461_coordinates.txt \
+    --project <out>/agisoft.psx --out <out>/colmap
+# move the origin to the mean camera centre, writes <dataset_path>/sparse/0 and <dataset_path>/cam_centroid.npy
+python scripts/preprocessing/recenter_colmap.py --src <out>/colmap/sparse/0 --out <dataset_path>
+mv <out>/colmap/images <dataset_path>/images
+```
+The 3DGS camera model assumes the principal point at the image centre, which the pinhole export ensures. Export in a projected CRS (`--crs`, default LV95 = EPSG:2056; `--crs local` for markers measured in local metres, with z up): the scene is then in metres around the mean camera centre, and world coordinates = scene coordinates + `cam_centroid.npy`. With `--mvs`, `metashape_to_colmap.py` also builds the MVS dense point cloud and exports it as E57.
+
+</details>
+<br>
+
 **Step 1.** To train a vanilla 3DGS scene reconstruction using wheat plot images as initialization:
 ```
 python train_vanilla_3dgs.py -s <dataset_path> -m <model_path> --resolution 1 --eval
