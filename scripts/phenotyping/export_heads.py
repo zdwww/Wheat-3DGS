@@ -11,10 +11,10 @@ Heads:
            For run_3d_seg.py, a head merged later is saved again as wh_XXXX_a.ply, _b.ply, ...: the last one is used.
     final  the head labels left in gaussians.ply (which_object) at the end of the run; heads don't overlap.
 
-Writes <out>/<NNNN>.ply with x, y, z (double), by default <model_path>/wheat-head/<exp_name>/lv95_<heads>/.
+Writes <out>/<NNNN>.ply with x, y, z (double), by default <model_path>/wheat-head/<exp_name>/heads_<heads>/.
 
 Usage:
-    python scripts/phenotyping/export_heads_lv95.py -m <model_path> --exp_name <exp_name> [-s <dataset_path>] [--heads saved|final]
+    python scripts/phenotyping/export_heads.py -m <model_path> --exp_name <exp_name> [-s <dataset_path>] [--heads saved|final]
 """
 import os
 import re
@@ -76,7 +76,7 @@ if __name__ == "__main__":
     parser.add_argument("-s", "--source_path", default="", help="dataset folder with cam_centroid.npy (default: from cfg_args)")
     parser.add_argument("--cam_centroid", default="", help="path to cam_centroid.npy (overrides -s)")
     parser.add_argument("--heads", choices=["saved", "final"], default="saved")
-    parser.add_argument("--out", default="", help="output folder (default: <model_path>/wheat-head/<exp_name>/lv95_<heads>)")
+    parser.add_argument("--out", default="", help="output folder (default: <model_path>/wheat-head/<exp_name>/heads_<heads>)")
     args = parser.parse_args()
 
     seg_dir = os.path.join(args.model_path, "wheat-head", args.exp_name)
@@ -86,7 +86,7 @@ if __name__ == "__main__":
     if not heads:
         raise RuntimeError(f"No wheat heads found in {seg_dir} ({args.heads})")
 
-    out_dir = args.out or os.path.join(seg_dir, f"lv95_{args.heads}")
+    out_dir = args.out or os.path.join(seg_dir, f"heads_{args.heads}")
     os.makedirs(out_dir, exist_ok=True)
     for head_id, xyz in heads.items():
         write_xyz(os.path.join(out_dir, f"{head_id:04}.ply"), xyz + offset)

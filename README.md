@@ -140,6 +140,22 @@ python eval_wheatgs.py -s <dataset_path> -m <model_path> --exp_name run1 --skip_
 ```
 Rendered 2D segmentation will be saved under `model_path/wheat-head/<exp_name>/eval/test/segmentation` and `overlay`, next to the 3D segmentation results, where they can be used for metric calculation.
 
+**Step 6.** To compare the traits of the segmented wheat heads with laser scans (TLS) and dense photogrammetry (MVS), as in Tables 3 and 4 of the paper, first export the heads of each plot in Swiss coordinates (LV95), then run the comparison. It needs the TLS and MVS point clouds of our data release:
+```bash
+for plot in 461 462 463 464 465 466 467; do
+  python scripts/phenotyping/export_heads.py -s data/plot_$plot -m output/plot_$plot --exp_name run1 --out heads/${plot}_1707
+done
+python scripts/phenotyping/s0_run_all.py --data_dir <data_release> --heads_dir heads --results_dir <results>
+```
+| Parameter | Type | Description |
+| :-------: | :--: | :---------: |
+| `--heads` | `saved` or `final` | `export_heads.py`: `saved` (default, used in the paper) exports the per-head files in `ply/`, which can contain duplicates (see the note in Step 3). `final` exports the head labels left in `gaussians.ply` at the end of the run, which don't overlap. |
+| `--icp_dir` | `str` | `s0_run_all.py`: only for the paper's reconstructions, which are shifted by 1-2 cm relative to the MVS point clouds: `<data_release>/02_point_clouds/transformations/gscs_to_pcs`. Not needed for the corrected dataset. |
+| `--seed` | `int` | `s0_run_all.py`: random seed for subsampling heads with more than 5000 points. The same seed gives the same result. |
+| `--min_points` | `int` | `s0_run_all.py`: heads with fewer points are skipped and reported. Default: 50. |
+
+Traits per head are saved in `<results>/traits_and_genotypes_all_methods` and the tables in `<results>/statistics_tables_3_and_4`. The expected data layout is described in `s0_run_all.py` and the individual steps in `scripts/phenotyping/Readme.txt`. Note that per-row values depend noticeably on the random subsampling, so small differences between runs or methods in those columns are not meaningful.
+
 ## Baseline
 To reproduce the baseline results presented in the paper (i.e. [FruitNeRF](https://github.com/meyerls/FruitNeRF)), please refer to the original repository and the scripts in the `scripts` folder.
 
