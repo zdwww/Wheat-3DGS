@@ -33,6 +33,9 @@ RUN pip install --no-cache-dir \
 RUN pip install --no-cache-dir seaborn thop \
         "segment-anything @ git+https://github.com/facebookresearch/segment-anything.git@dca509fe793f601edb92606367a655c15ac00fdf"
 
+# Phenotyping against TLS (scripts/phenotyping)
+RUN pip install --no-cache-dir hdbscan==0.8.38.post1 openpyxl==3.1.5
+
 COPY . .
 
 CMD ["/bin/bash"]
