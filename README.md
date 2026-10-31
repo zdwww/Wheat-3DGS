@@ -119,6 +119,8 @@ python run_3d_seg.py -s <dataset_path> -m <model_path> --iou_threshold 0.6 --exp
 | `--no_height_filter` | flag | Lift each seed mask to all Gaussians, not only those above the mean height of the scene (the default removes the ground and is meant for wheat heads; use this for other objects). |
 | `--masks_dir` | `str` | Folder containing `bboxes/` and `masks/`, as a subfolder of `<dataset_path>` (e.g. `yolosam_1280`) or an absolute path. Default: `<dataset_path>` itself, or `<dataset_path>/yolosam`. |
 
+**Note on duplicate wheat heads.** Each wheat head found is saved as `ply/wh_XXXX.ply`, and these files can contain duplicates of the same physical head, because masks already used for one head can be matched again by a later one. In our tests (grouping heads with a Jaccard overlap above 0.5 on their Gaussians), removing duplicates barely changes per-head trait errors against the laser scans, but head counts and ANOVA F values are inflated by them.
+
 **Step 4.** To generate a video rotating around the reconstructed wheat field for **qualitative** evaluation of the 3D segmentation results (as shown on our project page), run:
 ```
 python render_360.py -s <dataset_path> -m <model_path> --render_type <field or head> --exp_name run1 --n_frames 200 --framerate 20 --elevation 45
