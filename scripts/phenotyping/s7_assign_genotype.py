@@ -21,7 +21,7 @@ import numpy as np
 import pandas as pd
 from pathlib import Path
 from functions.transformations_functions import (load_transformation, apply_transformation_4x4_numpy,
-                                                 get_4x4_tmatrix_from_Rt, load_matrix)
+                                                 get_4x4_tmatrix_from_Rt, load_matrix, LV95_TO_PCS_SHIFT)
 from functions.assign_genotype_utils import *
 from itertools import chain
 
@@ -38,7 +38,7 @@ def main(data_relative_path=DATA_RELATIVE_PATH, genotype_bboxes_relative_path=GE
          transformations_lcs2pcs_plots=TRANSFORMATIONS_LCS_2_PCS_PER_PLOT_RELATIVE_PATH,
          transformations_pcs2lcs_all=TRANSFORMATIONS_PCS_2_LCS_JOINT_RELATIVE_PATH):
     # Define global shift
-    global_shift = np.array([-2693000, -1256000, 0])
+    global_shift = LV95_TO_PCS_SHIFT
 
     # Define paths
     project_folder = Path(__file__).parent.resolve()

@@ -10,11 +10,15 @@ For each subfolder inside `tls_old/`, this script:
   4) Preserves each original filename.
 
 Adjust the three Path variables below as needed.
+
+With transformations_relative_path=None only the LV95 -> PCS shift is applied (reconstructions that are
+already aligned, without the principal point shift).
 """
 
 from pathlib import Path
 import numpy as np
 import open3d as o3d
+from functions.transformations_functions import LV95_TO_PCS_SHIFT
 
 # === USER‐CONFIGURABLE PARAMETERS ===
 # folder containing the original point‐cloud subfolders:
@@ -29,7 +33,7 @@ def main(data_relative_path=DATA_RELATIVE_PATH, output_relative_path=OUTPUT_RELA
          transformations_relative_path=TRANSFORMATIONS_RELATIVE_PATH):
     # Set pathlib Paths from strings
     point_clouds_old_root = Path(data_relative_path)
-    matrices_folder = Path(transformations_relative_path)
+    matrices_folder = None if transformations_relative_path is None else Path(transformations_relative_path)
     point_clouds_new_root = Path(output_relative_path)
 
     # Make sure the output root exists (will also create subfolders on demand).
@@ -41,23 +45,25 @@ def main(data_relative_path=DATA_RELATIVE_PATH, output_relative_path=OUTPUT_RELA
             continue
 
         sub_id = subfolder.name  # e.g. "461_1707"
-        icp_filename = f"{sub_id}_ICP.txt"
-        icp_path = matrices_folder / icp_filename
+        T = None
+        if matrices_folder is not None:
+            icp_filename = f"{sub_id}_ICP.txt"
+            icp_path = matrices_folder / icp_filename
 
-        if not icp_path.exists():
-            print(f"[WARNING] ICP file not found for '{sub_id}': expected '{icp_filename}'. Skipping this subfolder.")
-            continue
+            if not icp_path.exists():
+                print(f"[WARNING] ICP file not found for '{sub_id}': expected '{icp_filename}'. Skipping this subfolder.")
+                continue
 
-        # Load the 4×4 transformation matrix
-        try:
-            T = np.loadtxt(icp_path)
-        except Exception as e:
-            print(f"[ERROR] Failed to load ICP matrix from '{icp_path}': {e}")
-            continue
+            # Load the 4×4 transformation matrix
+            try:
+                T = np.loadtxt(icp_path)
+            except Exception as e:
+                print(f"[ERROR] Failed to load ICP matrix from '{icp_path}': {e}")
+                continue
 
-        if T.shape != (4, 4):
-            print(f"[ERROR] ICP matrix '{icp_path}' is not 4×4 (found shape {T.shape}). Skipping '{sub_id}'.")
-            continue
+            if T.shape != (4, 4):
+                print(f"[ERROR] ICP matrix '{icp_path}' is not 4×4 (found shape {T.shape}). Skipping '{sub_id}'.")
+                continue
 
         # Create corresponding output subfolder, e.g. "tls_new/461_1707"
         out_subfolder = point_clouds_new_root / sub_id
@@ -79,8 +85,9 @@ def main(data_relative_path=DATA_RELATIVE_PATH, output_relative_path=OUTPUT_RELA
 
                 # Apply the 4×4 ICP transformation in place
 
-                pcd.translate([-2693000, -1256000, 0])
-                pcd.transform(T)  # modifies pcd.points (and normals, if present)
+                pcd.translate(LV95_TO_PCS_SHIFT)
+                if T is not None:
+                    pcd.transform(T)  # modifies pcd.points (and normals, if present)
 
                 # Write the transformed point cloud to the new location
                 out_ply = out_subfolder / ply_path.name

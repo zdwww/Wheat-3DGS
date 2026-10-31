@@ -6,7 +6,6 @@ from mpl_toolkits.mplot3d import Axes3D
 from scipy.interpolate import griddata
 from matplotlib.patches import Ellipse
 from scipy.stats import chi2
-matplotlib.use("TkAgg")
 
 
 def set_axes_equal(ax):

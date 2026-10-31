@@ -7,7 +7,6 @@ from pathlib import Path
 from matplotlib.path import Path as MplPath
 from matplotlib import pyplot as plt
 import matplotlib
-matplotlib.use("TkAgg")
 from itertools import chain
 
 # --- Helper Functions ---

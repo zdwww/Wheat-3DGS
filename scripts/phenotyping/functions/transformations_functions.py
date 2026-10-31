@@ -7,6 +7,9 @@ import pandas as pd
 import open3d as o3d
 import csv
 
+# PCS = LV95 + this shift (coordinates reduced to fit single precision)
+LV95_TO_PCS_SHIFT = np.array([-2693000.0, -1256000.0, 0.0])
+
 
 def read_points_from_csv(file_path: Path) -> Dict[str, Dict[str, np.ndarray]]:
     """

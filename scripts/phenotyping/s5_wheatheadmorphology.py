@@ -57,7 +57,11 @@ DEFAULT_CFG = {
         "std_ratio": 3
     },
     "splines_smoothing_value": 1,
-    "distance_percentile": 99
+    "distance_percentile": 95,  # reproduces the paper's width
+
+    # REPRODUCIBILITY / ROBUSTNESS
+    "seed": 0,                     # for the random subsampling
+    "min_points": 50               # heads with fewer points are skipped and reported
 }
 
 
@@ -75,6 +79,9 @@ def main(cfg: dict = DEFAULT_CFG) -> None:
     distance_percentile = cfg['distance_percentile']
     get_bboxes = cfg['get_bboxes']
     get_processed_pcd = cfg['get_processed_pcd']
+    min_points = cfg['min_points']
+
+    np.random.seed(cfg['seed'])
 
     # Create the common output folder if it doesn't exist
     output_folder.mkdir(parents=True, exist_ok=True)
@@ -93,7 +100,7 @@ def main(cfg: dict = DEFAULT_CFG) -> None:
         # ------------------------------------------------------------------------------------
         # Step 1a: Find all point cloud files (*.ply or *.txt) inside this subfolder
         # ------------------------------------------------------------------------------------
-        file_paths = list(subfolder.glob(f"*.{file_format}"))
+        file_paths = sorted(subfolder.glob(f"*.{file_format}"))
         if len(file_paths) == 0:
             print(f"  No '*.{file_format}' files found in {subfolder_name}, skipping.")
             continue
@@ -112,6 +119,9 @@ def main(cfg: dict = DEFAULT_CFG) -> None:
         remaining_point_cloud = []
         per_point_file_id = []
 
+        # Heads too small to clean and fit a bounding box to
+        skipped = []
+
         # ------------------------------------------------------------------------------------
         # Step 1c: Iterate over each point cloud in this subfolder
         # ------------------------------------------------------------------------------------
@@ -128,6 +138,10 @@ def main(cfg: dict = DEFAULT_CFG) -> None:
                 data = pcd_data[0]  # XYZ array
             else:
                 sys.exit("Point cloud file_format not supported, supported: .txt, .ply ")
+
+            if data.shape[0] < min_points:
+                skipped.append(file_path.stem)
+                continue
 
             # 1c.ii: Apply a “global shift” if needed (for numerical stability)
             if np.any(data[0] > 10_000):
@@ -184,10 +198,16 @@ def main(cfg: dict = DEFAULT_CFG) -> None:
         # ------------------------------------------------------------------------------------
         # Step 2: After processing all files in this subfolder, SAVE RESULTS
         # ------------------------------------------------------------------------------------
+        if skipped:
+            print(f"  Skipped {len(skipped)} heads with < {min_points} points: {', '.join(skipped)}")
+            results_df = results_df.dropna(how='all').reset_index(drop=True)
+
         # 2a) Attach a “file_id” column to results_df (stem or integer)
         file_ids = []
         for file_path in file_paths:
             stem = file_path.stem
+            if stem in skipped:
+                continue
             if re.fullmatch(r'\d+', stem):
                 file_ids.append(int(stem))
             else:
