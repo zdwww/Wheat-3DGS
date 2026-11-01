@@ -26,12 +26,10 @@ import sys
 import re
 
 import numpy as np
-from functions.traits_extraction_functions import compute_traits
-from functions.point_cloud_processing_utils import (
-    load_ply, subsample_pcd, main_cluster_extraction,
-    statistical_outlier_removal, save_ply
+from functions.toolbox import (
+    compute_traits, load_ply, subsample_pcd, main_cluster_extraction,
+    statistical_outlier_removal, save_ply, extract_bounding_box, save_bounding_boxes
 )
-from functions.bbox_functions import extract_bounding_box, save_bounding_boxes
 
 # === USER‐CONFIGURABLE PARAMETERS ===
 DEFAULT_CFG = {
