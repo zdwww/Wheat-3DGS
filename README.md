@@ -173,7 +173,12 @@ To reproduce the baseline results presented in the paper (i.e. [FruitNeRF](https
 </p> -->
 
 ## Visualization
-Our viewer is based on the implementation of [viser](https://github.com/nerfstudio-project/viser), allowing users to freely explore the reconstructed wheat field with overlaid 3D segmentation of wheat heads. Please refer to the scripts under folder `wheat3dgsviewer` for usage instructions.
+Our viewer is based on [viser](https://github.com/nerfstudio-project/viser) and [nerfview](https://github.com/nerfstudio-project/nerfview). It shows the reconstructed plot in the browser, with every segmented wheat head (final heads, `gaussians.ply` of a Step 3 run) in its own colour, and the training/test cameras in red/green (click a camera to jump to its view). The "Show head colours" checkbox switches back to the original appearance.
+```
+cd wheat3dgsviewer
+bash run.sh <dataset_path> <model_path> <exp_name> [port]
+```
+Then open `http://localhost:8080`. On a remote machine, forward the port (e.g. `ssh -L 8080:localhost:8080 <host>`, or the Ports panel of VS Code Remote); with Docker, add `-p 8080:8080` to `docker run`. Navigation: left-drag to orbit, right-drag to pan, scroll to zoom; `W`/`S` forward/back, `A`/`D` left/right, `Q`/`E` down/up, arrow keys to turn. Requires `viser==1.0.26 nerfview==0.1.3 splines jaxtyping` (included in the Docker image).
 
 ## Acknowledgement
 Our implementation is based on the original [3D Gaussian Splatting](https://github.com/graphdeco-inria/gaussian-splatting) and [FlashSplat](https://github.com/florinshen/FlashSplat). We thank the authors for their revolutionary work and open-source contributions.

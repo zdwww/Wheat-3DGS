@@ -5,6 +5,7 @@ segmented wheat head in its own colour, and the training/test cameras (red/green
 Head colours come from the `which_object` id stored in the segmentation's gaussians.ply. They are baked into
 the Gaussians once at startup, so each frame is a single render. The "Show head colours" checkbox switches
 back to the original appearance.
+Navigation: left-drag orbit, right-drag pan, scroll zoom; W/S forward/back, A/D left/right, Q/E down/up, arrows turn.
 
 Usage (from this folder):
     python wheatgs_rendering.py --input_ply <model_path>/wheat-head/<exp_name>/gaussians.ply \
