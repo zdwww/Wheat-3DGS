@@ -6,4 +6,5 @@ python wheatgs_rendering.py \
     --input_ply $MODEL/wheat-head/$EXP/gaussians.ply \
     --colmap_path $DATA/sparse/0 \
     --images_path $DATA/images \
+    --heads_dir $MODEL/wheat-head/$EXP/ply \
     --port $PORT
