@@ -1,243 +1,119 @@
-import cv2
-import argparse
-import math
-from tqdm.auto import tqdm
-import imageio as iio
-import random
+"""
+Interactive viewer (viser + nerfview) for a Wheat3DGS 3D segmentation: the reconstructed plot with every
+segmented wheat head in its own colour, and the training/test cameras (red/green, click one to jump to it).
+
+Head colours come from the `which_object` id stored in the segmentation's gaussians.ply. They are baked into
+the Gaussians once at startup, so each frame is a single render. The "Show head colours" checkbox switches
+back to the original appearance.
+
+Usage (from this folder):
+    python wheatgs_rendering.py --input_ply <model_path>/wheat-head/<exp_name>/gaussians.ply \
+        --colmap_path <dataset_path>/sparse/0 --images_path <dataset_path>/images --port 8080
+"""
 import os
-import os.path as osp
-from typing import List
 import time
-from typing import Tuple
-import imageio
+import colorsys
+import argparse
+
 import numpy as np
 import torch
-import torch.nn.functional as F
+import imageio.v2 as iio
 import viser
 import viser.transforms as vtf
-from viser.extras.colmap import (
-    read_cameras_binary,
-    read_images_binary,
-    read_points3d_binary,
-)
-from gsplat._helper import load_test_data
-from gsplat.rendering import rasterization
+from viser.extras.colmap import read_cameras_binary, read_images_binary, read_cameras_text, read_images_text
 import nerfview
-from gaussian_renderer import render
-from argparse import ArgumentParser
+
 from arguments import PipelineParams, ModelParams
+from gaussian_renderer import render
 from scene import GaussianModel
 from scene.cameras import Camera
-from gaussian_renderer.render_helper import eval_obj_labels
-from utils.image_utils import id2rgb, visualize_obj, overlay_image
 
 parser = argparse.ArgumentParser()
-lp = ModelParams(parser) # dataset
+lp = ModelParams(parser)
 pp = PipelineParams(parser)
-parser.add_argument(
-    "--output_dir", type=str, default="results/", help="where to dump outputs"
-)
-parser.add_argument(
-    "--scene_grid", type=int, default=1, help="repeat the scene into a grid of NxN"
-)
-parser.add_argument("--input_ply", type=str, default=None, help="path to the .ply file")
-parser.add_argument("--labels_path", type=str, default=None, help="path to the .ply file")
-parser.add_argument("--colmap_path", type=str, default=None, help="")
-parser.add_argument("--images_path", type=str, default=None, help="")
+parser.add_argument("--input_ply", type=str, required=True, help="gaussians.ply of a 3D segmentation (with which_object)")
+parser.add_argument("--colmap_path", type=str, required=True, help="sparse/0 of the plot (cameras + images, .bin or .txt)")
+parser.add_argument("--images_path", type=str, required=True, help="images/ of the plot (camera thumbnails)")
 parser.add_argument("--port", type=int, default=8080, help="port for the viewer server")
-parser.add_argument(
-    "--backend", type=str, default="gsplat", help="gsplat, gsplat_legacy, inria"
-)
 args = parser.parse_args()
-assert args.scene_grid % 2 == 1, "scene_grid must be odd"
 pipe = pp.extract(args)
-pipe.convert_SHs_python = True
 dataset = lp.extract(args)
-dataset.sh_degree = 0
-gaussians = GaussianModel(dataset.sh_degree)
-gaussians.load_ply(args.input_ply, remove_features_rest = True)
-print(f"Num of Gaussians loaded from {args.input_ply}: {len(gaussians.get_xyz)}")
-print(gaussians.get_which_object)
-torch.manual_seed(42)
-device = "cuda"
 
-all_obj_labels = torch.load(args.labels_path).cuda()
+with torch.no_grad():
+    gaussians = GaussianModel(dataset.sh_degree) # 0 by default: view-independent colours only, faster
+    gaussians.load_ply(args.input_ply, remove_features_rest=(dataset.sh_degree == 0))
+    which_object = gaussians.get_which_object.squeeze(-1).long()
+    head_ids = torch.unique(which_object[which_object > 0])
+    print(f"Loaded {len(which_object)} Gaussians, {len(head_ids)} wheat heads from {args.input_ply}")
 
-# Define gaussians and pipe
+    # Bake one flat colour per head (golden-ratio hue spacing, so neighbouring ids differ) into the DC term
+    SH_C0 = 0.28209479177387814
+    orig_features = (gaussians._features_dc.detach().clone(), gaussians._features_rest.detach().clone())
+    head_features = (orig_features[0].clone(), orig_features[1].clone())
+    lut = torch.zeros(int(which_object.max()) + 1, 3, device="cuda")
+    for head_id in head_ids.tolist():
+        rgb = colorsys.hsv_to_rgb((head_id * 0.618033988749895) % 1.0, 0.85, 0.95)
+        lut[head_id] = (torch.tensor(rgb, device="cuda") - 0.5) / SH_C0
+    in_head = which_object > 0
+    head_features[0][in_head, 0, :] = lut[which_object[in_head]]
+    head_features[1][in_head] = 0.0
+
+def set_head_colours(show):
+    features_dc, features_rest = head_features if show else orig_features
+    gaussians._features_dc.data.copy_(features_dc)
+    gaussians._features_rest.data.copy_(features_rest)
+
+set_head_colours(True)
+background = torch.ones(3, dtype=torch.float32, device="cuda")
 
 @torch.no_grad()
-def viewer_render_fn(camera_state: nerfview.CameraState, 
-    img_wh: Tuple[int, int],
-    # gaussians: GaussianModel,
-    # pipe: dict,
-) -> np.ndarray:  # Expected shape: (H, W, 3) with dtype uint8
-    with torch.no_grad():
-        W, H = img_wh
-        K = camera_state.get_K(img_wh)
-        W2C = np.linalg.inv(camera_state.c2w)
-        R = W2C[:3, :3].transpose()
-        T = W2C[:3, 3]        
-        fx = K[0, 0]
-        fy = K[1, 1]
-        FoVx = 2 * np.arctan(W / (2 * fx))
-        FoVy = 2 * np.arctan(H / (2 * fy))
-        camera = Camera(
-            colmap_id=-1,
-            R=R, T=T,
-            FoVx=FoVx, FoVy=FoVy,
-            image=None,
-            image_name="render_view",
-            uid=0,
-            resolution=(W, H),
-            data_device="cuda",
-            # cx=K[0, 2], cy=K[1, 2],
-            # fl_x=fx, fl_y=fy,
-            # meta_only=True
-        )
-        background = torch.zeros(3, dtype=torch.float32, device="cuda") # to change background color
-        background = torch.ones(3, dtype=torch.float32, device="cuda")
-        rendered_output = render(
-            viewpoint_camera=camera.cuda(),
-            pc=gaussians,
-            pipe=pipe,
-            bg_color=background,
-            scaling_modifier=1.0,
-            # target_values = [17]
-            # target_values = [27, 94, 14, 9, 24, 72, 8, 9, 32, 35, 41, 44, 50, 68]
-        )
-        img = rendered_output["render"].detach().cpu()
-        pred_seg = eval_obj_labels(all_obj_labels, camera.cuda(), gaussians, pipe, background).detach().cpu()
-        rgb_mask = visualize_obj(pred_seg) / 255.0
-        img = overlay_image(img, rgb_mask, alpha=0.3)
-        img = (img.numpy() * 255).astype(np.uint8)
-        img = img.transpose(1, 2, 0)  # Convert from CxHxW to HxWxC
-        return img
+def viewer_render_fn(camera_state: nerfview.CameraState, render_tab_state: nerfview.RenderTabState) -> np.ndarray:
+    W, H = render_tab_state.viewer_width, render_tab_state.viewer_height
+    K = camera_state.get_K((W, H))
+    W2C = np.linalg.inv(camera_state.c2w)
+    camera = Camera(resolution=(W, H), colmap_id=-1, R=W2C[:3, :3].transpose(), T=W2C[:3, 3],
+                    FoVx=2 * np.arctan(W / (2 * K[0, 0])), FoVy=2 * np.arctan(H / (2 * K[1, 1])),
+                    image=None, image_name="render_view", uid=0, data_device="cuda")
+    img = render(viewpoint_camera=camera, pc=gaussians, pipe=pipe, bg_color=background)["render"]
+    return (img.clamp(0, 1).permute(1, 2, 0).cpu().numpy() * 255).astype(np.uint8)
 
 server = viser.ViserServer(port=args.port, verbose=False)
-# server.scene.world_axes.visible = True
+viewer = nerfview.Viewer(server=server, render_fn=viewer_render_fn, mode="rendering")
 
-######## Begin of Colmap part ########
+show_heads = server.gui.add_checkbox("Show head colours", initial_value=True)
+@show_heads.on_update
+def _(_):
+    with viewer.lock:
+        set_head_colours(show_heads.value)
+    viewer.rerender(None)
 
-colmap_path = args.colmap_path
-images_path = args.images_path
-downsample_factor = 10
-reorient_scene = True
-cameras = read_cameras_binary(os.path.join(colmap_path, "cameras.bin"))
-images = read_images_binary(os.path.join(colmap_path, "images.bin"))
-points3d = read_points3d_binary(os.path.join(colmap_path, "points3D.bin"))
-points = np.array([points3d[p_id].xyz for p_id in points3d])
-print(f"Points centroid: {np.mean(points, axis=0)}")
+# Cameras at their COLMAP poses: training views red, test views (cam_11/12) green; click one to jump to it
+if os.path.exists(os.path.join(args.colmap_path, "cameras.bin")):
+    cameras = read_cameras_binary(os.path.join(args.colmap_path, "cameras.bin"))
+    images = read_images_binary(os.path.join(args.colmap_path, "images.bin"))
+else:
+    cameras = read_cameras_text(os.path.join(args.colmap_path, "cameras.txt"))
+    images = read_images_text(os.path.join(args.colmap_path, "images.txt"))
 
-img_ids = [im.id for im in images.values()]
+for img in images.values():
+    cam = cameras[img.camera_id]
+    fy = cam.params[1] if cam.model == "PINHOLE" else cam.params[0] # SIMPLE_PINHOLE: f, cx, cy
+    T_world_camera = vtf.SE3.from_rotation_and_translation(vtf.SO3(img.qvec), img.tvec).inverse()
+    wxyz, position = T_world_camera.rotation().wxyz, T_world_camera.translation()
+    image_name = os.path.splitext(img.name)[0]
+    is_test = image_name.split("_")[-1].isdigit() and int(image_name.split("_")[-1]) > 10
+    image_path = os.path.join(args.images_path, img.name)
+    thumbnail = iio.imread(image_path)[::10, ::10] if os.path.exists(image_path) else None
+    frustum = server.scene.add_camera_frustum(f"/cameras/{image_name}", fov=2 * np.arctan2(cam.height / 2, fy),
+                                              aspect=cam.width / cam.height, scale=0.04, image=thumbnail,
+                                              wxyz=wxyz, position=position,
+                                              color=(0, 255, 0) if is_test else (255, 71, 77))
+    def jump_to(event, wxyz=wxyz, position=position):
+        with event.client.atomic():
+            event.client.camera.wxyz = wxyz
+            event.client.camera.position = position
+    frustum.on_click(jump_to)
 
-def set_camera_frustums(
-        server,
-        scale_factor=0.1,
-        downsample_factor=10,
-        frustum_scale=0.05,
-        frustum_axes_length=0.005,
-        frustum_axes_radius=0.001
-    ):
-    """Set up camera frames and frustums following COLMAP convention."""
-    camera_handles = {}
-    frames = []
-    image = None
-    
-    for img_id in tqdm(img_ids):
-        print(img_id)
-        img = images[img_id]
-        cam = cameras[img.camera_id]
-        W, H = cam.width, cam.height
-        fx, fy, cx, cy = cam.params
-        print(f"Camera {img_id}: {W}x{H}, fx={fx}, fy={fy}, cx={cx}, cy={cy}")
-        # Skip images that don't exist.
-        image_filename = os.path.join(images_path, img.name)
-        
-        elements = os.path.splitext(img.name)[0].split("_")
-
-        if len(elements) == 5:
-            group = 1
-        else:
-            if int(elements[2]) == 6:
-                group = 2
-            else:
-                group = 3
-        print("elements:", elements, "group:", group)
-
-        if int(elements[-1]) > 10:
-            split = 'test'
-        else:
-            split = 'train'
-        color = (255, 71, 77) if split == 'train' else (0, 255, 0) # red or green
-        # color = (255, 0, 0) # red
-        
-        # Only visualize if in a specific group
-        # if True: # group == 1: # and int(elements[-1]) == 6:
-        if (group == 2 and int(elements[-1]) == 9) or (group == 3 and int(elements[-1]) == 2):
-            pass
-        else:
-            T_world_camera = vtf.SE3.from_rotation_and_translation(
-                vtf.SO3(img.qvec), img.tvec
-            ).inverse()
-            wxyz = T_world_camera.rotation().wxyz
-            position=T_world_camera.translation()
-            
-            # Move the camera down
-            position[2] = position[2] - 2.5
-
-            # Add coordinate frame (useful for debugging)
-            frame = server.scene.add_frame(
-                f"/colmap/frame_{img_id}",
-                wxyz=wxyz,
-                position=position,
-                axes_length= 0.0, # 0.1, # frustum_axes_length
-                axes_radius= 0.0, # 0.005, # frustum_axes_length
-                visible=True
-            )
-            frames.append(frame)
-
-            # Load image if we find it
-            if os.path.exists(image_filename):
-                # image = cv2.cvtColor(cv2.imread(image_filename, cv2.IMREAD_GRAYSCALE), cv2.COLOR_GRAY2RGB)
-                image = iio.imread(image_filename)
-                image = image[::downsample_factor, ::downsample_factor]
-            else:
-                print(f"Image {image_filename} not found.")
-                continue  
-            
-            fov = 2 * np.arctan2(H / 2, fy) 
-            aspect = W / H
-            fov *= 4 # 2.5 
-            print(f"fov {fov}, aspect {aspect}")
-            # Add frustum
-            frustum = server.scene.add_camera_frustum(
-                f"/colmap/frame_{img_id}/frustum",
-                fov=fov,
-                aspect=aspect,
-                scale=0.04,
-                color=color,
-                image=image,
-                visible=True,
-            )
-
-            # Attach callback to go to the camera when clicked
-            def create_camera_callback(frame_position, frame_wxyz, cam_name):
-                def callback(event):
-                    with event.client.atomic():
-                        event.client.camera.position = frame_position
-                        event.client.camera.wxyz = frame_wxyz
-                return callback
-            
-            frustum.on_click(create_camera_callback(position, wxyz, img.name))
-            camera_handles[img_id] = frustum
-    
-    return camera_handles, frames
-
-_ = nerfview.Viewer(
-    server=server,
-    render_fn=viewer_render_fn,
-    mode="rendering",
-)
-camera_handles, frames = set_camera_frustums(server)
-print("Viewer running... Ctrl+C to exit.")
-time.sleep(100000)
+print(f"Viewer running at http://localhost:{args.port} ... Ctrl+C to exit.")
+while True:
+    time.sleep(10)
