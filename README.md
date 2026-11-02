@@ -173,7 +173,7 @@ To reproduce the baseline results presented in the paper (i.e. [FruitNeRF](https
 </p> -->
 
 ## Visualization
-Our viewer is based on [viser](https://github.com/nerfstudio-project/viser) and [nerfview](https://github.com/nerfstudio-project/nerfview). It shows the reconstructed plot in the browser, with every segmented wheat head (final heads, `gaussians.ply` of a Step 3 run) in its own colour, and the training/test cameras in red/green (click a camera to jump to its view). "Colour by" switches between these final heads, the saved heads (`ply/`, the heads used in Step 6: Gaussians in 1 / 2 / 3 or more saved heads in green / yellow / red, i.e. heads saved more than once) and the original appearance; "Saved head" shows one saved head together with the saved heads sharing at least half of its Gaussians.
+Our viewer is based on [viser](https://github.com/nerfstudio-project/viser) and [nerfview](https://github.com/nerfstudio-project/nerfview). It shows the reconstructed plot in the browser, with every segmented wheat head (final heads, `gaussians.ply` of a Step 3 run) in its own colour, and the training/test cameras in red/green (click a camera to jump to its view). "Colour by" switches between these final heads, duplicates among the saved heads (`ply/`, the heads used in Step 6: Gaussians in 1 / 2 / 3 or more saved heads in green / yellow / red, i.e. heads saved more than once) and the original appearance; "Saved head" shows one saved head together with the saved heads sharing at least half of its Gaussians.
 ```
 cd wheat3dgsviewer
 bash run.sh <dataset_path> <model_path> <exp_name> [port]
