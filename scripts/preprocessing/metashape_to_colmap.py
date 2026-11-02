@@ -20,7 +20,9 @@ detected coded targets ("target 1", ...). gnss_to_markers.py writes these files 
 Coordinates in a local metric system (e.g. tape measurements) work too, with --crs local; see gnss_to_markers.py.
 
 The export writes <out>/images/<name>.png (undistorted), <out>/sparse/0/{cameras,images,points3D}.txt,
-<out>/marker_projections.csv and, with --mvs, <out>/pointcloud.e57.
+<out>/marker_projections.csv and, with --mvs, <out>/pointcloud.e57. The marker pixels are in the raw (distorted) input
+images, as Metashape stores them: use them with the raw images and their distorted calibration, not with images/ and
+sparse/0.
 
 Why pinhole + a projected CRS: the 3DGS camera model here ignores cx, cy (it assumes the principal point at the image
 centre), and Metashape's pinhole conversion centres it. Always export with a projected CRS (--crs): without one,
@@ -37,7 +39,7 @@ LOCAL_CRS = 'LOCAL_CS["Local Coordinates (m)",LOCAL_DATUM["Local Datum",0],UNIT[
 
 
 def export_marker_projections(chunk, path):
-    """Marker pixel coordinates in the undistorted images, as Marker,Camera,X,Y,Pinned (Pinned = detected, not projected)"""
+    """Marker pixel coordinates in the raw (distorted) images, as Marker,Camera,X,Y,Pinned (Pinned = detected, not projected)"""
     count = 0
     with open(path, "w") as f:
         f.write("Marker,Camera,X,Y,Pinned\n")
