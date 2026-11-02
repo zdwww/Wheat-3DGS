@@ -117,7 +117,7 @@ python run_3d_seg.py -s <dataset_path> -m <model_path> --iou_threshold 0.6 --exp
 | `--iou_threshold` | `float` | The IoU threshold for associating rendered and YOLO-SAM-generated 2D segmentations. A higher threshold results in more conservative mask matching. Paper: 0.6 (default of `run_3d_seg_paper.py`). |
 | `--num_match` | `int` | `run_3d_seg_paper.py` only: number of views (including the starting view) a wheat head must be matched in. Paper: 5 (default). |
 | `--seed` | `int` | Random seed for the order in which the 2D masks are processed. The same seed gives the same result. |
-| `--exp_name` | `str` | The experiment name used to create the folder for saving all results under `<model_path>/wheat_head`.
+| `--exp_name` | `str` | The experiment name used to create the folder for saving all results under `<model_path>/wheat-head`.
 | `--no_height_filter` | flag | Lift each seed mask to all Gaussians, not only those above the mean height of the scene (the default removes the ground and is meant for wheat heads; use this for other objects). |
 | `--masks_dir` | `str` | Folder containing `bboxes/` and `masks/`, as a subfolder of `<dataset_path>` (e.g. `yolosam_1280`) or an absolute path. Default: `<dataset_path>` itself, or `<dataset_path>/yolosam`. |
 
@@ -134,13 +134,13 @@ python render_360.py -s <dataset_path> -m <model_path> --render_type <field or h
 |`--framerate`| `int` | Framerate. Length of video = `n_frames / framerate`|
 |`--elevation`| `int` | Elevation angle for the camera trajectory rotating around the scene. The larger the angle, the more novel the rendered view is, since the training views are captured by an overhead camera. |
 
-Results will be saved as a video `<model_path>/wheat_head/<exp_name>/wheat_field_360.mp4` for the whole wheat field and a list of videos under the directory `.../<exp_name>/wheat_head_360` for each wheat head id.
+Results will be saved as a video `<model_path>/wheat-head/<exp_name>/wheat_field_360.mp4` for the whole wheat field and a list of videos under the directory `.../<exp_name>/wheat_head_360` for each wheat head id.
 
 **Step 5.** To **quantitatively** evaluate the quality of 3D segmentation and reproduce Table 2 in the paper (with a segmentation from `run_3d_seg_paper.py`), project the 3D segmentation into 2D by
 ```
 python eval_wheatgs.py -s <dataset_path> -m <model_path> --exp_name run1 --skip_train --load_counts
 ```
-Rendered 2D segmentation will be saved under `model_path/wheat-head/<exp_name>/eval/test/segmentation` and `overlay`, next to the 3D segmentation results, where they can be used for metric calculation.
+Rendered 2D segmentation will be saved under `<model_path>/wheat-head/<exp_name>/eval/test/segmentation` and `overlay`, next to the 3D segmentation results, where they can be used for metric calculation.
 
 **Step 6.** To compare the traits of the segmented wheat heads with laser scans (TLS) and dense photogrammetry (MVS), as in Tables 3 and 4 of the paper, first export the heads of each plot in Swiss coordinates (LV95), then run the comparison. It needs the TLS and MVS point clouds of our data release:
 ```bash
