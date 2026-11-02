@@ -80,7 +80,7 @@ python scripts/preprocessing/recenter_colmap.py --src <out>/colmap/sparse/0 --ou
     --distorted <out>/colmap/distorted/sparse/0
 mv <out>/colmap/images <dataset_path>/images
 ```
-The 3DGS camera model assumes the principal point at the image centre, which the pinhole export ensures. Export in a projected CRS (`--crs`, default LV95 = EPSG:2056; `--crs local` for markers measured in local metres, with z up): the scene is then in metres around the mean camera centre, and world coordinates = scene coordinates + `cam_centroid.npy`. With `--mvs`, `metashape_to_colmap.py` also builds the MVS dense point cloud and exports it as E57.
+The 3DGS camera model assumes the principal point at the image centre, which the pinhole export ensures. Export in a projected CRS (`--crs`, default LV95 = EPSG:2056; `--crs local` for markers measured in local metres, with z up): the scene is then in metres around the mean camera centre, and world coordinates = scene coordinates + `cam_centroid.npy`. With `--mvs`, `metashape_to_colmap.py` also builds the MVS dense point cloud and exports it as E57. It stops if fewer than 3 targets with coordinates are found, since the export would then not be georeferenced. Marker detection differs between Metashape versions (tested with 2.2.1, which misses a partly covered target that 2.1 finds); add a missed target's pixels with `--marker_pixels <csv>` (`Marker,Camera,X,Y` in the raw images).
 
 </details>
 <br>
