@@ -147,9 +147,14 @@ for plot in 461 462 463 464 465 466 467; do
 done
 python scripts/phenotyping/s0_run_all.py --data_dir <data_release> --heads_dir heads --results_dir <results>
 ```
+The TLS and MVS heads are cut out of the plot point clouds with bounding boxes fitted to the exported heads. Although the Wheat3DGS heads can be reproduced closely, the newly cut TLS and MVS heads differ from the paper's (the paper's TLS heads are larger, possibly due to older different HDBSCAN or SOR filtering parameters in [step 5](scripts/phenotyping/s5_wheatheadmorphology.py)), so the trait comparison gives different numbers than Tables 3 and 4. To reproduce Tables 3 and 4 of the paper, run the comparison on the paper's head point clouds of all three methods, included in the data release:
+```bash
+python scripts/phenotyping/s0_run_all.py --data_dir <data_release> --paper_heads_dir <data_release>/03_results/paper_heads --results_dir <results>
+```
 | Parameter | Type | Description |
 | :-------: | :--: | :---------: |
 | `--heads` | `saved` or `final` | `export_heads.py`: `saved` (default, used in the paper) exports the per-head files in `ply/`, which can contain duplicates (see the note in Step 3). `final` exports the head labels left in `gaussians.ply` at the end of the run, which don't overlap. |
+| `--paper_heads_dir` | `str` | `s0_run_all.py`: instead of `--heads_dir`, a folder with heads already cut for all three methods (`gs/`, `tls/`, `mvs/`, one subfolder per plot, in the coordinate system of the point clouds). Only the trait and statistics steps run. |
 | `--icp_dir` | `str` | `s0_run_all.py`: only for the paper's reconstructions, which are shifted by 1-2 cm relative to the MVS point clouds: `<data_release>/02_point_clouds/transformations/gscs_to_pcs`. Not needed for the corrected dataset. |
 | `--seed` | `int` | `s0_run_all.py`: random seed for subsampling heads with more than 5000 points. The same seed gives the same result. |
 | `--min_points` | `int` | `s0_run_all.py`: heads with fewer points are skipped and reported. Default: 50. |
