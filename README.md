@@ -140,7 +140,11 @@ Results will be saved as a video `<model_path>/wheat-head/<exp_name>/wheat_field
 ```
 python eval_wheatgs.py -s <dataset_path> -m <model_path> --exp_name run1 --skip_train --load_counts
 ```
-Rendered 2D segmentation will be saved under `<model_path>/wheat-head/<exp_name>/eval/test/segmentation` and `overlay`, next to the 3D segmentation results, where they can be used for metric calculation.
+Rendered 2D segmentation will be saved under `<model_path>/wheat-head/<exp_name>/eval/test/segmentation` and `overlay`, next to the 3D segmentation results. Then compute the metrics of Table 2 (IoU, precision, recall, F1, MSE, SSIM) against the manual labels (`<dataset_path>/manual_label/`), per plot and averaged over plots:
+```
+python evaluate_2D.py -s <dataset_path_1> <dataset_path_2> ... -m <model_path_1> <model_path_2> ... --exp_name run1
+```
+The metrics and an overlay per view (red: overlap, gray: label only, light red: prediction only) are saved in `<model_path>/wheat-head/<exp_name>/eval/test/`. For masks of another method, give `--pred_dir <folder>` (one per dataset path, masks named like the views) instead of `-m` and `--exp_name`.
 
 **Step 6.** To compare the traits of the segmented wheat heads with laser scans (TLS) and dense photogrammetry (MVS), as in Tables 3 and 4 of the paper, first export the heads of each plot in Swiss coordinates (LV95), then run the comparison. It needs the TLS and MVS point clouds of our data release:
 ```bash
