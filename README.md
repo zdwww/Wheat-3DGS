@@ -75,7 +75,9 @@ python scripts/preprocessing/gnss_to_markers.py --gnss_csv <survey.csv> --out <m
 python scripts/preprocessing/metashape_to_colmap.py --images <raw_images> --markers <markers_dir>/plot_461_coordinates.txt \
     --project <out>/agisoft.psx --out <out>/colmap
 # move the origin to the mean camera centre, writes <dataset_path>/sparse/0 and <dataset_path>/cam_centroid.npy
-python scripts/preprocessing/recenter_colmap.py --src <out>/colmap/sparse/0 --out <dataset_path>
+# (--distorted: also the cameras with their distortion model + the marker pixels, in <dataset_path>/distorted/)
+python scripts/preprocessing/recenter_colmap.py --src <out>/colmap/sparse/0 --out <dataset_path> \
+    --distorted <out>/colmap/distorted/sparse/0
 mv <out>/colmap/images <dataset_path>/images
 ```
 The 3DGS camera model assumes the principal point at the image centre, which the pinhole export ensures. Export in a projected CRS (`--crs`, default LV95 = EPSG:2056; `--crs local` for markers measured in local metres, with z up): the scene is then in metres around the mean camera centre, and world coordinates = scene coordinates + `cam_centroid.npy`. With `--mvs`, `metashape_to_colmap.py` also builds the MVS dense point cloud and exports it as E57.

@@ -7,8 +7,10 @@ Why: projected coordinates are large (LV95 easting/northing ~ 2.7e6 / 1.3e6 m), 
 float32, which resolves only ~0.25 m at 2.7e6 m. Near the origin (a few metres) it's well below a micrometre.
 
 Usage (after metashape_to_colmap.py):
-    python scripts/preprocessing/recenter_colmap.py --src <export>/sparse/0 --out <plot>
+    python scripts/preprocessing/recenter_colmap.py --src <export>/sparse/0 --out <plot> [--distorted <export>/distorted/sparse/0]
 writes <plot>/sparse/0/{cameras,images,points3D}.txt (cameras.txt copied unchanged) and <plot>/cam_centroid.npy.
+With --distorted, the distorted model (same camera centres) is moved by the same offset into <plot>/distorted/sparse/0,
+and <export>/distorted/marker_projections.csv is copied next to it if present.
 """
 import os
 import shutil
@@ -48,20 +50,10 @@ def camera_center(fields):
     return -R.T @ t, R, t
 
 
-if __name__ == "__main__":
-    parser = ArgumentParser(description="Recentre a COLMAP text model on its mean camera centre")
-    parser.add_argument("--src", type=str, required=True, help="folder with cameras.txt, images.txt, points3D.txt")
-    parser.add_argument("--out", type=str, required=True, help="plot folder: writes sparse/0/ and cam_centroid.npy there")
-    parser.add_argument("--overwrite", action="store_true", help="replace an existing <out>/sparse/0")
-    args = parser.parse_args()
-
-    dst = os.path.join(args.out, "sparse", "0")
-    assert os.path.abspath(dst) != os.path.abspath(args.src), "--out must not contain --src"
-    assert args.overwrite or not os.path.exists(os.path.join(dst, "images.txt")), f"{dst} exists (use --overwrite)"
+def recenter(src, dst, centroid):
+    """Write the model in src to dst with its origin moved to centroid"""
     os.makedirs(dst, exist_ok=True)
-
-    header, images = read_images(os.path.join(args.src, "images.txt"))
-    centroid = np.mean([camera_center(fields)[0] for fields, _ in images], axis=0)
+    header, images = read_images(os.path.join(src, "images.txt"))
 
     # Cameras: same rotation, centre c - centroid, so t' = -R (c - centroid) = t + R centroid
     with open(os.path.join(dst, "images.txt"), "w") as f:
@@ -72,7 +64,7 @@ if __name__ == "__main__":
             f.write(" ".join(fields) + "\n" + points2d + "\n")
 
     # Points: X - centroid, everything else (color, error, track) unchanged
-    with open(os.path.join(args.src, "points3D.txt")) as fin, open(os.path.join(dst, "points3D.txt"), "w") as fout:
+    with open(os.path.join(src, "points3D.txt")) as fin, open(os.path.join(dst, "points3D.txt"), "w") as fout:
         for line in fin:
             if line.startswith("#") or not line.strip():
                 fout.write(line)
@@ -82,10 +74,41 @@ if __name__ == "__main__":
             fout.write(" ".join(fields) + "\n")
 
     # Cameras: intrinsics don't depend on the origin
-    shutil.copyfile(os.path.join(args.src, "cameras.txt"), os.path.join(dst, "cameras.txt"))
-    np.save(os.path.join(args.out, "cam_centroid.npy"), centroid)
+    shutil.copyfile(os.path.join(src, "cameras.txt"), os.path.join(dst, "cameras.txt"))
 
     # Check: camera centres now average to zero
     _, out_images = read_images(os.path.join(dst, "images.txt"))
     residual = np.mean([camera_center(fields)[0] for fields, _ in out_images], axis=0)
-    print(f"{args.src} -> {dst}: {len(images)} cameras, cam_centroid {centroid.tolist()}, new mean camera centre {residual.tolist()}")
+    print(f"{src} -> {dst}: {len(images)} cameras, new mean camera centre {residual.tolist()}")
+
+
+if __name__ == "__main__":
+    parser = ArgumentParser(description="Recentre a COLMAP text model on its mean camera centre")
+    parser.add_argument("--src", type=str, required=True, help="folder with cameras.txt, images.txt, points3D.txt")
+    parser.add_argument("--out", type=str, required=True, help="plot folder: writes sparse/0/ and cam_centroid.npy there")
+    parser.add_argument("--distorted", type=str, default=None,
+                        help="optional distorted model of the same cameras (metashape_to_colmap.py: <export>/distorted/sparse/0), "
+                             "moved by the same offset into <out>/distorted/sparse/0")
+    parser.add_argument("--overwrite", action="store_true", help="replace an existing <out>/sparse/0 (and <out>/distorted/sparse/0)")
+    args = parser.parse_args()
+
+    jobs = [(args.src, os.path.join(args.out, "sparse", "0"))]
+    if args.distorted is not None:
+        jobs.append((args.distorted, os.path.join(args.out, "distorted", "sparse", "0")))
+    for src, dst in jobs:
+        assert os.path.abspath(dst) != os.path.abspath(src), "--out must not contain --src or --distorted"
+        assert args.overwrite or not os.path.exists(os.path.join(dst, "images.txt")), f"{dst} exists (use --overwrite)"
+
+    _, images = read_images(os.path.join(args.src, "images.txt"))
+    centroid = np.mean([camera_center(fields)[0] for fields, _ in images], axis=0)
+    for src, dst in jobs:
+        recenter(src, dst, centroid)
+    np.save(os.path.join(args.out, "cam_centroid.npy"), centroid)
+    print(f"cam_centroid {centroid.tolist()} -> {os.path.join(args.out, 'cam_centroid.npy')}")
+
+    if args.distorted is not None:
+        # Marker pixels are in the raw (distorted) images, so they go with the distorted model
+        markers = os.path.join(args.distorted, "..", "..", "marker_projections.csv")
+        if os.path.exists(markers):
+            shutil.copyfile(markers, os.path.join(args.out, "distorted", "marker_projections.csv"))
+            print(f"copied {os.path.normpath(markers)} -> {os.path.join(args.out, 'distorted')}")

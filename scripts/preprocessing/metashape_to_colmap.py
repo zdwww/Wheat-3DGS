@@ -19,10 +19,11 @@ Markers: one file per plot with label,x,y,z per line in --crs ('#' lines are ski
 detected coded targets ("target 1", ...). gnss_to_markers.py writes these files from a GNSS (e.g. Trimble) survey.
 Coordinates in a local metric system (e.g. tape measurements) work too, with --crs local; see gnss_to_markers.py.
 
-The export writes <out>/images/<name>.png (undistorted), <out>/sparse/0/{cameras,images,points3D}.txt,
-<out>/marker_projections.csv and, with --mvs, <out>/pointcloud.e57. The marker pixels are in the raw (distorted) input
-images, as Metashape stores them: use them with the raw images and their distorted calibration, not with images/ and
-sparse/0.
+The export writes <out>/images/<name>.png (undistorted), <out>/sparse/0/{cameras,images,points3D}.txt, the same cameras
+with their distortion model (no images; they are the raw input images) in <out>/distorted/sparse/0/, and
+<out>/distorted/marker_projections.csv; with --mvs also <out>/pointcloud.e57. The marker pixels are in the raw
+(distorted) input images, as Metashape stores them: use them with the raw images and distorted/sparse/0, not with
+images/ and sparse/0. recenter_colmap.py --distorted moves both models by the same offset.
 
 Why pinhole + a projected CRS: the 3DGS camera model here ignores cx, cy (it assumes the principal point at the image
 centre), and Metashape's pinhole conversion centres it. Always export with a projected CRS (--crs): without one,
@@ -112,16 +113,19 @@ if __name__ == "__main__":
         build_mvs(chunk, os.path.join(args.out, "pointcloud.e57"), crs)
         doc.save()
 
-    # The COLMAP exporter writes images/ and sparse/0/ next to the given file; the file itself is only a readme
-    chunk.exportCameras(
-        os.path.join(args.out, "colmap_export_readme.txt"),
-        format=Metashape.CamerasFormatColmap,
-        crs=crs,
-        convert_to_pinhole=True,
-        save_images=not args.no_images,
-        image_path="{filename}.png",
-        binary=False,
-        save_markers=False,
-    )
-    n = export_marker_projections(chunk, os.path.join(args.out, "marker_projections.csv"))
+    # The COLMAP exporter writes images/ and sparse/0/ next to the given file; the file itself is only a readme.
+    # First undistorted pinhole (for 3DGS), then the same cameras with their distortion model (no images)
+    for folder, pinhole in ((args.out, True), (os.path.join(args.out, "distorted"), False)):
+        os.makedirs(folder, exist_ok=True)
+        chunk.exportCameras(
+            os.path.join(folder, "colmap_export_readme.txt"),
+            format=Metashape.CamerasFormatColmap,
+            crs=crs,
+            convert_to_pinhole=pinhole,
+            save_images=pinhole and not args.no_images,
+            image_path="{filename}.png",
+            binary=False,
+            save_markers=False,
+        )
+    n = export_marker_projections(chunk, os.path.join(args.out, "distorted", "marker_projections.csv"))
     print(f"Exported COLMAP ({args.crs}) to {args.out}, {n} marker projections")
