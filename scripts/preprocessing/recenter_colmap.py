@@ -8,10 +8,10 @@ float32, which resolves only ~0.25 m at 2.7e6 m. Near the origin (a few metres) 
 
 Usage (after metashape_to_colmap.py):
     python scripts/preprocessing/recenter_colmap.py --src <export>/sparse/0 --out <plot>
-writes <plot>/sparse/0/{cameras,images,points3D}.txt and <plot>/cam_centroid.npy (cameras.txt unchanged, except that
-SIMPLE_PINHOLE is written as the equivalent PINHOLE, the only model the text loader in scene/colmap_loader.py accepts).
+writes <plot>/sparse/0/{cameras,images,points3D}.txt (cameras.txt copied unchanged) and <plot>/cam_centroid.npy.
 """
 import os
+import shutil
 from argparse import ArgumentParser
 
 import numpy as np
@@ -81,13 +81,8 @@ if __name__ == "__main__":
             fields[1:4] = [repr(float(v)) for v in np.array(fields[1:4], dtype=np.float64) - centroid]
             fout.write(" ".join(fields) + "\n")
 
-    # Cameras: SIMPLE_PINHOLE (Metashape) -> the same camera as PINHOLE (f, f, cx, cy), which the text loader expects
-    with open(os.path.join(args.src, "cameras.txt")) as fin, open(os.path.join(dst, "cameras.txt"), "w") as fout:
-        for line in fin:
-            fields = line.split()
-            if not line.startswith("#") and len(fields) == 7 and fields[1] == "SIMPLE_PINHOLE":
-                line = " ".join(fields[:1] + ["PINHOLE"] + fields[2:5] + fields[4:]) + "\n"
-            fout.write(line)
+    # Cameras: intrinsics don't depend on the origin
+    shutil.copyfile(os.path.join(args.src, "cameras.txt"), os.path.join(dst, "cameras.txt"))
     np.save(os.path.join(args.out, "cam_centroid.npy"), centroid)
 
     # Check: camera centres now average to zero
