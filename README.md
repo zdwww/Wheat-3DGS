@@ -57,10 +57,11 @@ Please unzip `yolosam.zip` for each plot before running the 3D segmentation, ins
 
 ### Quick start
 
-The majority of the Wheat3DGS pipeline can be executed by running this script.
+The pipeline for one plot, with the paper's settings (Steps 1, 3, 4 and 5 below: reconstruction and novel view synthesis metrics, 3D segmentation, video of the field, Table 2 metrics), can be run with:
 ```
-sbatch run_wheat_3dgs.sh
+bash run_wheat_3dgs.sh <dataset_path> <model_path> [exp_name]
 ```
+For all plots, e.g. `for p in <data_dir>/plot_*; do bash run_wheat_3dgs.sh $p <output_dir>/$(basename $p); done`. The trait comparison with the laser scans (Step 6) runs on all plots together and needs the TLS data, so it is not part of the script.
 
 ### Step-by-step instructions
 
