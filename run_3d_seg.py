@@ -43,7 +43,7 @@ def find_new_mask_dir(img_dir, num_wheat_head):
     return letter_suffix
 
         
-def training(dataset, opt, pipe, load_iteration, exp_name, iou_threshold, seed=0, height_filter=True):
+def training(dataset, opt, pipe, load_iteration, exp_name, iou_threshold, seed=0, height_filter=True, save_counts=False):
     # The order of the seed masks (shuffled below) drives the greedy match-and-fine-tune, so fix it
     random.seed(seed)
     np.random.seed(seed)
@@ -52,13 +52,13 @@ def training(dataset, opt, pipe, load_iteration, exp_name, iou_threshold, seed=0
 
     # All 3DSeg results will be saved under 3dgs_model_path/wheat-head/(exp_name)
     out_dir = os.path.join(dataset.model_path, "wheat-head", exp_name)
-    sub_dirs = ["ply", "img", "count"]
+    sub_dirs = ["ply", "img"] + (["count"] if save_counts else [])
     for sub_dir in sub_dirs:
         os.makedirs(os.path.join(out_dir, sub_dir), exist_ok=True)
-    ply_dir, img_dir, count_dir = [os.path.join(out_dir, sub_dir) for sub_dir in sub_dirs]
+    ply_dir, img_dir, count_dir = [os.path.join(out_dir, sub_dir) for sub_dir in ["ply", "img", "count"]]
 
     with open(f"{out_dir}/experiment.txt", "w") as file:
-        file.write(f"exp_name {exp_name}\niou_threshold {iou_threshold}\nseed {seed}\nheight_filter {height_filter}\n")
+        file.write(f"exp_name {exp_name}\niou_threshold {iou_threshold}\nseed {seed}\nheight_filter {height_filter}\nsave_counts {save_counts}\n")
     
     results = open(os.path.join(out_dir, 'results.csv'), mode='w', newline='')
     writer = csv.writer(results)
@@ -222,13 +222,13 @@ def training(dataset, opt, pipe, load_iteration, exp_name, iou_threshold, seed=0
                 writer.writerow([f"{which_wheat_head:04}", this_mask_name, str(len(matched_viewpoint_stack)), str(num_GS)])
                 results.flush()
 
-            # Save used count for future use
-            print(f"For wh {which_wheat_head}, all_counts.shape {all_counts.shape}")
-            counts_save_pth = f"{count_dir}/{which_wheat_head:04}.pt"
-            if os.path.exists(counts_save_pth):
-                print(f"{counts_save_pth} exists...removing...")
-                os.remove(counts_save_pth)
-            torch.save(all_counts.detach().cpu(), counts_save_pth)
+            if save_counts: # per-Gaussian counts of this head (~17 MB each), not read by any later step
+                print(f"For wh {which_wheat_head}, all_counts.shape {all_counts.shape}")
+                counts_save_pth = f"{count_dir}/{which_wheat_head:04}.pt"
+                if os.path.exists(counts_save_pth):
+                    print(f"{counts_save_pth} exists...removing...")
+                    os.remove(counts_save_pth)
+                torch.save(all_counts.detach().cpu(), counts_save_pth)
 
             #### Evaluation of refined training ####
             # os.makedirs(f"{this_mask_dir}/overlay", exist_ok=True)  
@@ -276,8 +276,9 @@ if __name__ == "__main__":
     parser.add_argument("--iou_threshold", type=float, default=0.5, help="IOU threshold for matching")
     parser.add_argument("--seed", type=int, default=0, help="Random seed for the processing order of the 2D masks")
     parser.add_argument("--no_height_filter", action="store_true", help="lift seed masks to all Gaussians, not only those above the mean height (the default is meant for wheat heads)")
+    parser.add_argument("--save_counts", action="store_true", help="also save each wheat head's per-Gaussian counts to count/<id>.pt (~17 MB each), not needed by any later step")
     args = parser.parse_args(sys.argv[1:])
     print("Optimizing " + args.model_path)
 
-    training(lp.extract(args), op.extract(args), pp.extract(args), 
-             args.load_iteration, args.exp_name, args.iou_threshold, args.seed, not args.no_height_filter)
+    training(lp.extract(args), op.extract(args), pp.extract(args),
+             args.load_iteration, args.exp_name, args.iou_threshold, args.seed, not args.no_height_filter, args.save_counts)

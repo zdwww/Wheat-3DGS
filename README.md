@@ -119,6 +119,7 @@ python run_3d_seg.py -s <dataset_path> -m <model_path> --iou_threshold 0.6 --exp
 | `--seed` | `int` | Random seed for the order in which the 2D masks are processed. The same seed gives the same result. |
 | `--exp_name` | `str` | The experiment name used to create the folder for saving all results under `<model_path>/wheat-head`.
 | `--no_height_filter` | flag | Lift each seed mask to all Gaussians, not only those above the mean height of the scene (the default removes the ground and is meant for wheat heads; use this for other objects). |
+| `--save_counts` | flag | `run_3d_seg.py` only: also save each wheat head's per-Gaussian counts to `count/<id>.pt` (~17 MB each); not needed by any later step. |
 | `--masks_dir` | `str` | Folder containing `bboxes/` and `masks/`, as a subfolder of `<dataset_path>` (e.g. `yolosam_1280`) or an absolute path. Default: `<dataset_path>` itself, or `<dataset_path>/yolosam`. |
 
 **Note on duplicate wheat heads.** Each wheat head found is saved as `ply/wh_XXXX.ply`, and these files can contain duplicates of the same physical head, because masks already used for one head can be matched again by a later one. In our tests (grouping heads with a Jaccard overlap above 0.5 on their Gaussians), removing duplicates barely changes per-head trait errors against the laser scans, but head counts and ANOVA F values are inflated by them.
