@@ -1,10 +1,10 @@
 # Python dependencies of Wheat3DGS, pinned to the versions tested in the Docker image
 # (base image pytorch/pytorch:1.13.1-cuda11.6-cudnn8-devel: Python 3.10.8, torch 1.13.1, torchvision 0.14.1).
 #
-# Without Docker (Python 3.10, CUDA 11.6 toolkit with nvcc for the submodules), install PyTorch first, then:
+# Without Docker (Ubuntu: sudo apt install ffmpeg libgl1 libglib2.0-0 libgomp1; Python 3.10; CUDA 11.x toolkit with nvcc), then:
 #   pip install torch==1.13.1+cu116 torchvision==0.14.1+cu116 --extra-index-url https://download.pytorch.org/whl/cu116
 #   pip install -r requirements.txt
-#   pip install submodules/simple-knn submodules/diff-gaussian-rasterization submodules/flashsplat-rasterization
+#   pip install --no-build-isolation submodules/simple-knn submodules/diff-gaussian-rasterization submodules/flashsplat-rasterization
 
 # Core (torch 1.13 needs numpy < 2; pillow, pyyaml and tqdm are the base image's versions)
 numpy==1.26.4
@@ -28,6 +28,7 @@ open3d==0.18.0
 imageio==2.38.0
 jupyterlab==4.6.4
 ninja==1.13.2
+setuptools==65.5.0  # torch 1.13 builds the submodules with pkg_resources, removed in newer setuptools
 
 # 2D mask generation (scripts/generate_masks.py): YOLOv5 v7.0 (submodule) + SAM
 seaborn==0.13.2
