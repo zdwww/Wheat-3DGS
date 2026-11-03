@@ -24,7 +24,7 @@
 The setup should be very similar to the original [3D Gaussian Splatting](https://github.com/graphdeco-inria/gaussian-splatting) except we used a modified version of [differential gaussian rasterization](https://github.com/ashawkey/diff-gaussian-rasterization/tree/8829d14f814fccdaf840b7b0f3021a616583c0a1) with support of depth & alpha rendering, and an additional [flashsplat-rasterization](https://github.com/florinshen/flashsplat-rasterization/tree/189c483ffa33dd6d5661343ce496df0c6eb80a0c) submodule. We tested it with Python 3.10, PyTorch 1.13.1 and CUDA 11.6 (`requirements.txt`); the Docker image is the easiest way to get this setup.
 
 ### Docker
-```
+```bash
 docker pull joaquingajardo/wheat3dgs:torch1.13-cu116        # or build it: docker build -t joaquingajardo/wheat3dgs:torch1.13-cu116 .
 git clone --recursive https://github.com/zdwww/Wheat-3DGS.git && cd Wheat-3DGS
 docker run --gpus all -it --shm-size=16g --user $(id -u):$(id -g) -e HOME=/tmp \
@@ -33,7 +33,7 @@ docker run --gpus all -it --shm-size=16g --user $(id -u):$(id -g) -e HOME=/tmp \
 This mounts your clone (code, `data/`, `output/`) into the container; run the commands below inside it. Without a clone, mount only your folders, e.g. `-v <data>:/workspace/Wheat-GS/data -v <output>:/workspace/Wheat-GS/output`, and the code in the image is used. Building the image takes about 20 min and needs no GPU. The CUDA extensions are compiled for GPU architectures 7.0–8.6 and run on newer GPUs through PTX (tested on RTX A5000, RTX 3090 and RTX 4090). For the viewer, add `-p 8080:8080`.
 
 ### Apptainer (HPC clusters)
-```
+```bash
 apptainer build wheat3dgs.sif docker://joaquingajardo/wheat3dgs:torch1.13-cu116
 sbatch -J wheat3dgs --time=24:00:00 scripts/apptainer_job.sh bash run_wheat_3dgs.sh data/plot_461 output/plot_461
 ```
@@ -41,7 +41,7 @@ sbatch -J wheat3dgs --time=24:00:00 scripts/apptainer_job.sh bash run_wheat_3dgs
 
 ### Without Docker
 With Python 3.10 and a CUDA 11.x toolkit (`nvcc`) installed, e.g. with conda on Ubuntu:
-```
+```bash
 sudo apt install ffmpeg libgl1 libglib2.0-0 libgomp1
 git clone --recursive https://github.com/zdwww/Wheat-3DGS.git && cd Wheat-3DGS
 conda create -n wheat3dgs python=3.10 && conda activate wheat3dgs
