@@ -16,17 +16,38 @@
 - <b>[4/30/2025]</b> Initial code release 
 
 ## 📝 TODO List
-- [ ] Share Docker setup
+- [x] Share Docker setup
 - [x] Script to get initial masks
 - [ ] Data to ETH research collection including laser scans
 
 ## 🛠️ Setup
-The setup should be very similar to the original [3D Gaussian Splatting](https://github.com/graphdeco-inria/gaussian-splatting) except we used a modified version of [differential gaussian rasterization](https://github.com/ashawkey/diff-gaussian-rasterization/tree/8829d14f814fccdaf840b7b0f3021a616583c0a1) with support of depth & alpha rendering, and an additional [flashsplat-rasterization](https://github.com/florinshen/flashsplat-rasterization/tree/189c483ffa33dd6d5661343ce496df0c6eb80a0c) submodule. 
+The setup should be very similar to the original [3D Gaussian Splatting](https://github.com/graphdeco-inria/gaussian-splatting) except we used a modified version of [differential gaussian rasterization](https://github.com/ashawkey/diff-gaussian-rasterization/tree/8829d14f814fccdaf840b7b0f3021a616583c0a1) with support of depth & alpha rendering, and an additional [flashsplat-rasterization](https://github.com/florinshen/flashsplat-rasterization/tree/189c483ffa33dd6d5661343ce496df0c6eb80a0c) submodule. We tested it with Python 3.10, PyTorch 1.13.1 and CUDA 11.6 (`requirements.txt`); the Docker image is the easiest way to get this setup.
 
+### Docker
 ```
-git clone --recursive https://github.com/zdwww/Wheat-3DGS.git
-conda env create --file environment.yml
-conda activate wheat3dgs
+docker pull joaquingajardo/wheat3dgs:torch1.13-cu116        # or build it: docker build -t joaquingajardo/wheat3dgs:torch1.13-cu116 .
+git clone --recursive https://github.com/zdwww/Wheat-3DGS.git && cd Wheat-3DGS
+docker run --gpus all -it --shm-size=16g --user $(id -u):$(id -g) -e HOME=/tmp \
+    -v $PWD:/workspace/Wheat-GS joaquingajardo/wheat3dgs:torch1.13-cu116
+```
+This mounts your clone (code, `data/`, `output/`) into the container; run the commands below inside it. Without a clone, mount only your folders, e.g. `-v <data>:/workspace/Wheat-GS/data -v <output>:/workspace/Wheat-GS/output`, and the code in the image is used. Building the image takes about 20 min and needs no GPU. The CUDA extensions are compiled for GPU architectures 7.0–8.6 and run on newer GPUs through PTX (tested on RTX A5000, RTX 3090 and RTX 4090). For the viewer, add `-p 8080:8080`.
+
+### Apptainer (HPC clusters)
+```
+apptainer build wheat3dgs.sif docker://joaquingajardo/wheat3dgs:torch1.13-cu116
+sbatch -J wheat3dgs --time=24:00:00 scripts/apptainer_job.sh bash run_wheat_3dgs.sh data/plot_461 output/plot_461
+```
+`scripts/apptainer_job.sh` runs a command in the image with the repository mounted (also without SLURM: `bash scripts/apptainer_job.sh <command>`). See its header for the options (other image path, extra folders to mount, LPIPS weights on offline compute nodes).
+
+### Without Docker
+With Python 3.10 and a CUDA 11.x toolkit (`nvcc`) installed, e.g. with conda on Ubuntu:
+```
+sudo apt install ffmpeg libgl1 libglib2.0-0 libgomp1
+git clone --recursive https://github.com/zdwww/Wheat-3DGS.git && cd Wheat-3DGS
+conda create -n wheat3dgs python=3.10 && conda activate wheat3dgs
+pip install torch==1.13.1+cu116 torchvision==0.14.1+cu116 --extra-index-url https://download.pytorch.org/whl/cu116
+pip install -r requirements.txt
+pip install --no-build-isolation submodules/simple-knn submodules/diff-gaussian-rasterization submodules/flashsplat-rasterization
 ```
 
 ## 🌾 Dataset
@@ -92,13 +113,13 @@ python train_vanilla_3dgs.py -s <dataset_path> -m <model_path> --resolution 1 --
 ```
 Note that `resolution` is set to 1 to prevent image downscaling, and the training/test split for evaluation follows the default setting of our dataset.
 
-You can also run `render.py` and `metrics.py` with the same input arguments to evaluate the quality of novel view synthesis on the reconstructed wheat fields (see Sec. 5.1). 
+You can also run `render.py` and `metrics.py` with the same input arguments to evaluate the quality of novel view synthesis on the reconstructed wheat fields (see Sec. 5.1). `render.py` reads the dataset path from the model's `cfg_args`; if the data has moved since training (e.g. trained in Docker, rendered outside), add `-s <dataset_path>`.
 
 **Step 2 (Optional).** The wheat head bounding boxes (YOLOv5) and 2D segmentations (SAM) are already provided in our dataset (`yolosam.zip`). To generate them yourself, e.g. for new data, download the [wheat head detection weights](https://drive.google.com/drive/folders/1DCf23OqiMp68aWDc1fd33gnukI5kQ_j0) (`wheat_head_detection_model.pt`, from the [winning solution](https://github.com/ksnxr/GWC_solution) of the Global Wheat Head Detection Challenge 2021) and the [SAM ViT-H checkpoint](https://dl.fbaipublicfiles.com/segment_anything/sam_vit_h_4b8939.pth) into `weights/`, then run:
 ```
 python scripts/generate_masks.py -s <dataset_path> [<dataset_path> ...]
 ```
-This writes `bboxes/` and `masks/` into each plot folder (or into another folder with `--out`, e.g. to keep several mask sets side by side; select one with `--masks_dir`, see Step 3). `--vis` also saves `yolo_vis/` and `sam_vis/`. The defaults (`--conf 0.25`, `--img_size 640`) reproduce the provided masks. YOLOv5 is included as a submodule (`submodules/yolov5`, tag `v7.0`, [AGPL-3.0](https://github.com/ultralytics/yolov5/blob/master/LICENSE)) and needs `seaborn` and `thop`, plus [`segment-anything`](https://github.com/facebookresearch/segment-anything) for SAM (all included in the Docker image). 
+If you keep the weights elsewhere, pass `--yolo_weights` and `--sam_checkpoint`. This writes `bboxes/` and `masks/` into each plot folder (or into another folder with `--out`, e.g. to keep several mask sets side by side; select one with `--masks_dir`, see Step 3). `--vis` also saves `yolo_vis/` and `sam_vis/`. The defaults (`--conf 0.25`, `--img_size 640`) reproduce the provided masks. YOLOv5 is included as a submodule (`submodules/yolov5`, tag `v7.0`, [AGPL-3.0](https://github.com/ultralytics/yolov5/blob/master/LICENSE)) and needs `seaborn` and `thop`, plus [`segment-anything`](https://github.com/facebookresearch/segment-anything) for SAM (all included in the Docker image). 
 
 #### Use your own 2D masks
 To use your own 2D masks instead (e.g. from another segmentation model), put them in a folder with this layout and pass it to the 3D segmentation with `--masks_dir` (see Step 3):

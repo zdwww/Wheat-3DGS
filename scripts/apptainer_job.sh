@@ -1,5 +1,6 @@
 #!/bin/bash
 # Runs a command inside the Wheat3DGS Apptainer image (README: Apptainer), on a SLURM cluster or directly.
+# The image: apptainer build wheat3dgs.sif docker://joaquingajardo/wheat3dgs:torch1.13-cu116
 # Usage, from the repository root:
 #   sbatch scripts/apptainer_job.sh bash run_wheat_3dgs.sh data/plot_461 output/plot_461
 #   bash scripts/apptainer_job.sh python render.py -m output/plot_461      # without SLURM
