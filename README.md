@@ -188,7 +188,7 @@ python scripts/phenotyping/s0_run_all.py --data_dir <data_release> --paper_heads
 | `--seed` | `int` | `s0_run_all.py`: random seed for subsampling heads with more than 5000 points. The same seed gives the same result. |
 | `--min_points` | `int` | `s0_run_all.py`: heads with fewer points are skipped and reported. Default: 50. |
 
-Traits per head are saved in `<results>/traits_and_genotypes_all_methods` and the tables in `<results>/statistics_tables_3_and_4`. The expected data layout is described in `s0_run_all.py` and the individual steps in `scripts/phenotyping/Readme.txt`. Note that per-row values depend noticeably on the random subsampling, so small differences between runs or methods in those columns are not meaningful.
+Traits per head are saved in `<results>/traits_and_genotypes_all_methods` and the tables in `<results>/statistics_tables_3_and_4`. The expected data layout is described in `s0_run_all.py` and the individual steps in `scripts/phenotyping/Readme.txt`. For trait extraction alone (without the TLS/MVS comparison), on any folder of wheat head point clouds (`.ply` or `.txt`), run `python wheatheadsmorphology/main.py -c wheatheadsmorphology/config.yaml` (see [its README](wheatheadsmorphology/README.md)); the Step 6 scripts use the same functions.Note that per-row values depend noticeably on the random subsampling, so small differences between runs or methods in those columns are not meaningful.
 
 ## Baseline
 To reproduce the baseline results presented in the paper (i.e. [FruitNeRF](https://github.com/meyerls/FruitNeRF)), please refer to the original repository and the scripts in the `scripts` folder.
