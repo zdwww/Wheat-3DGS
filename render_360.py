@@ -191,7 +191,7 @@ def render_wheat_field(dataset : ModelParams, pipeline : PipelineParams, exp_nam
 if __name__ == "__main__":
     # Set up command line argument parser
     parser = ArgumentParser(description="Testing script parameters")
-    model = ModelParams(parser)
+    model = ModelParams(parser, sentinel=True)
     pipeline = PipelineParams(parser)
     opt = OptimizationParams(parser)
     parser.add_argument("--iteration", default=-1, type=int, help="iteration of OG 3DGS to load, default: the one the 3D segmentation used (head: only checked, the heads come from the segmentation)")
