@@ -39,6 +39,9 @@ RUN pip install --no-cache-dir hdbscan==0.8.38.post1 openpyxl==3.1.5
 # Interactive viewer (wheat3dgsviewer/); nerfview also needs splines and jaxtyping, not declared as dependencies
 RUN pip install --no-cache-dir viser==1.0.26 nerfview==0.1.3 splines==0.3.3 jaxtyping==0.3.7
 
+# The base image's conda ffmpeg has no libx264 (render_360.py videos): use the apt ffmpeg installed above
+RUN ln -sf /usr/bin/ffmpeg /opt/conda/bin/ffmpeg
+
 COPY . .
 
 CMD ["/bin/bash"]
