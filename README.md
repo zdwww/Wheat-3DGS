@@ -74,6 +74,11 @@ plot_46x/
 ```
 Please unzip `yolosam.zip` for each plot before running the 3D segmentation, inside the plot folder (`cd plot_46x && unzip yolosam.zip`), so that `bboxes/` and `masks/` end up directly in `plot_46x/` (a `plot_46x/yolosam/` subfolder, as created by some GUI unzip tools, also works). The image names are structured as follows. For example, in `FPWW036_SR0461_FIP2_cam_01.png`: `FPWW036_SR0461` is shared by all images from the same plot; `FIP2` indicates the batch ID, which may appear as `1_FIP2`, `6_FIP`, or `FIP2`; and the final element `01` is the camera ID, ranging from `01` to `12`. Our data preprocessing functions already handle the naming convention correctly. To see how the cameras are positioned in 3D and how the train/test views are distributed, open a reconstruction in the [viewer](#visualization), which shows each camera at its pose (training views in red, test views in green).
 
+The full data release (ETH Research Collection) also includes a second acquisition date, 19 July 2024, which was not used in the paper: raw and corrected images with camera poses, 2D masks at 640 and 1280 px, and laser scans. We share it for the community, e.g. to test methods on another date with different (darker) illumination.
+
+### Corrected dataset and known issues
+After publication we found three issues that affect the results: the cameras of the original dataset have an off-centre principal point, which 3DGS ignores (the pixel shift of Sec. 5.1); the 2D wheat-head detector was run at 640 px, where many heads are too small to be found; and the height filter of the 3D segmentation removes whole rows of short genotypes. We provide a corrected dataset (principal point at the image centre) and recommend `generate_masks.py --img_size 1280` and `--no_height_filter` for new work. The default commands below still reproduce the paper. See [REPRODUCIBILITY.md](REPRODUCIBILITY.md) for the details, the recommended commands and the effect of each fix.
+
 ## 💻 Using Wheat3DGS
 
 ### Quick start
