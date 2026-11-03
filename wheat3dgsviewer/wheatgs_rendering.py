@@ -20,6 +20,7 @@ import argparse
 import colorsys
 import glob
 import os
+import re
 import time
 
 import imageio.v2 as iio
@@ -55,13 +56,23 @@ def id_colour(i):
 
 def load_saved_heads(heads_dir, gaussians):
     """Saved head id -> indices of its Gaussians in gaussians.ply. Each wh_XXXX.ply is a pruned copy of the same
-    Gaussians, so they are matched by their coordinates."""
+    Gaussians, so they are matched by their coordinates. run_3d_seg.py saves a head again as wh_XXXX_a.ply, _b.ply, ...
+    after merging it with a later one: the last version is used (as in scripts/phenotyping/export_heads.py)."""
     index_of = {key: i for i, key in enumerate(map(bytes, gaussians.get_xyz.detach().cpu().numpy()))}
+    paths = sorted(glob.glob(os.path.join(heads_dir, "wh_*.ply")))
+    latest = {} # head id -> (suffix, path)
+    for path in paths:
+        match = re.fullmatch(r"wh_(\d+)(?:_([a-z]))?\.ply", os.path.basename(path))
+        head_id, suffix = int(match.group(1)), match.group(2) or ""
+        if head_id not in latest or suffix > latest[head_id][0]:
+            latest[head_id] = (suffix, path)
+    if len(latest) < len(paths):
+        print(f"{len(paths)} files in {heads_dir}: {len(latest)} heads, using the last version of {len(paths) - len(latest)} re-saved ones")
     saved_heads = {}
-    for path in sorted(glob.glob(os.path.join(heads_dir, "wh_*.ply"))):
+    for head_id, (_, path) in sorted(latest.items()):
         vertex = PlyData.read(path)["vertex"]
         xyz = np.stack([vertex["x"], vertex["y"], vertex["z"]], axis=1).astype(np.float32)
-        saved_heads[int(os.path.basename(path)[3:-4])] = torch.tensor([index_of[key] for key in map(bytes, xyz)], device="cuda")
+        saved_heads[head_id] = torch.tensor([index_of[key] for key in map(bytes, xyz)], device="cuda")
     return saved_heads
 
 def duplicates_of(i, saved_heads, n_gaussians):
