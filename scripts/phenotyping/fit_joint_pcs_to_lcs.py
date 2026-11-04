@@ -5,12 +5,13 @@ coordinate system (tmatrix_4x4_pcs_to_lcs.txt).
 
 Same target files as s1 (query_lcs.csv: target centres in PCS, target_pcs.csv: the same targets in LCS; the
 names follow the original scripts) and the same Kabsch fit, but one rigid transformation over the targets of all
-plots of one date. Plot 466 is left out by default, as for the 20240717 matrix of the paper (its targets were
-corrupted); this reproduces that matrix exactly.
+plots of one date. Check the printed residuals: a plot whose targets don't fit (about 2-3 cm is normal) can be left
+out with --exclude. For 20240717, plot 466 is 18 cm off and the paper's matrix was fitted without it
+(--date 1707 --exclude 466 reproduces it exactly); on 20240719 all plots fit.
 
 Usage:
     python scripts/phenotyping/fit_joint_pcs_to_lcs.py --transformations_dir <data_dir>/02_point_clouds/transformations \
-        --date 1707 [--exclude 466] [--out <transformations_dir>/tmatrix_4x4_pcs_to_lcs.txt]
+        --date 1907 [--exclude <plot> ...] [--out <transformations_dir>/tmatrix_4x4_pcs_to_lcs.txt]
 """
 import argparse
 from pathlib import Path
@@ -25,7 +26,7 @@ def main():
     parser = argparse.ArgumentParser(description="Joint PCS -> LCS matrix for the genotype polygons (step 7)")
     parser.add_argument("--transformations_dir", required=True, help="folder with query_lcs.csv and target_pcs.csv")
     parser.add_argument("--date", required=True, help="DDMM of the Set_IDs to use, e.g. 1707 for 461_1707")
-    parser.add_argument("--exclude", nargs="*", default=["466"], help="plots left out of the fit (default: 466)")
+    parser.add_argument("--exclude", nargs="*", default=[], help="plots left out of the fit, e.g. 466 for 20240717")
     parser.add_argument("--out", default=None, help="default: <transformations_dir>/tmatrix_4x4_pcs_to_lcs.txt")
     args = parser.parse_args()
 
