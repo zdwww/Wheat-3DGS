@@ -2,7 +2,9 @@
 Camera alignment in Agisoft Metashape and export to COLMAP (undistorted pinhole, centred principal point), in a
 projected CRS (default Swiss LV95, EPSG:2056). This is how the reprocessed version of our dataset was made. Afterwards run
 recenter_colmap.py, which moves the origin to the mean camera centre (as in the released data) and saves the offset.
-Optionally also builds the MVS dense point cloud (--mvs) and exports it as E57 in the same CRS.
+Optionally also builds the MVS dense point cloud (--mvs) and exports it as E57 in the same CRS (double precision), and
+with --mvs_shift as PLY in that CRS minus a fixed shift (for our data the project coordinates, PCS = LV95 - (2693000,
+1256000, 0), as used by the laser scans and scripts/phenotyping/).
 
 Needs Metashape Professional with a license and its Python module
 (wheel from https://www.agisoft.com/downloads/installer/, tested with 2.2.1).
@@ -25,7 +27,7 @@ marker_projections.csv or picked by hand).
 
 The export writes <out>/images/<name>.png (undistorted), <out>/sparse/0/{cameras,images,points3D}.txt, the same cameras
 with their distortion model (no images; they are the raw input images) in <out>/distorted/sparse/0/, and
-<out>/distorted/marker_projections.csv; with --mvs also <out>/pointcloud.e57. The marker pixels are in the raw
+<out>/distorted/marker_projections.csv; with --mvs also <out>/pointcloud.e57 (+ pointcloud_shifted.ply). The marker pixels are in the raw
 (distorted) input images, as Metashape stores them: use them with the raw images and distorted/sparse/0, not with
 images/ and sparse/0. recenter_colmap.py --distorted moves both models by the same offset.
 
@@ -120,12 +122,19 @@ def align(images_dir, markers_path, crs, exclude, marker_pixels=None):
     return doc, chunk
 
 
-def build_mvs(chunk, path, crs):
-    """Dense point cloud as for the paper's MVS clouds (full-resolution depth maps, default filtering), saved as E57"""
+def build_mvs(chunk, path, crs, shift=None):
+    """Dense point cloud as for the paper's MVS clouds (full-resolution depth maps, default filtering), saved as E57.
+    With shift, also <out>/pointcloud_shifted.ply with the coordinates in crs minus shift (float32 is precise enough there)"""
     chunk.buildDepthMaps(downscale=1)
     chunk.buildPointCloud()
     chunk.exportPointCloud(path, format=Metashape.PointCloudFormatE57, crs=crs)
     print(f"Exported MVS point cloud to {path}")
+    if shift is not None:
+        ply = os.path.join(os.path.dirname(path), "pointcloud_shifted.ply")
+        # Metashape subtracts the given shift: written coordinates = crs coordinates - shift
+        chunk.exportPointCloud(ply, format=Metashape.PointCloudFormatPLY, crs=crs, shift=Metashape.Vector(shift),
+                               save_point_color=True, save_point_normal=True, binary=True)
+        print(f"Exported MVS point cloud minus {shift} to {ply}")
 
 
 if __name__ == "__main__":
@@ -142,6 +151,9 @@ if __name__ == "__main__":
     parser.add_argument("--exclude", type=str, nargs="*", default=["cam_13"], help="image name suffixes to leave out (camera 13 for our plots)")
     parser.add_argument("--no_images", action="store_true", help="only write sparse/ (e.g. when the undistorted images exist already)")
     parser.add_argument("--mvs", action="store_true", help="also build the dense point cloud and export <out>/pointcloud.e57")
+    parser.add_argument("--mvs_shift", type=float, nargs=3, default=None, metavar=("X", "Y", "Z"),
+                        help="with --mvs, also write <out>/pointcloud_shifted.ply in --crs minus this shift, e.g. 2693000 1256000 0 "
+                             "for the project coordinates (PCS) of our TLS clouds and phenotyping scripts")
     parser.add_argument("--gpu_mask", type=int, default=None, help="Metashape GPU bitmask, e.g. 2 = second GPU only (default: Metashape's setting)")
     args = parser.parse_args()
 
@@ -167,7 +179,7 @@ if __name__ == "__main__":
 
     os.makedirs(args.out, exist_ok=True)
     if args.mvs:
-        build_mvs(chunk, os.path.join(args.out, "pointcloud.e57"), crs)
+        build_mvs(chunk, os.path.join(args.out, "pointcloud.e57"), crs, args.mvs_shift)
         doc.save()
 
     # The COLMAP exporter writes images/ and sparse/0/ next to the given file; the file itself is only a readme.
