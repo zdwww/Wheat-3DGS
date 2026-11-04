@@ -5,9 +5,10 @@ Runs the whole TLS comparison (steps 1-9, see Readme.txt) for one set of Wheat3D
 --data_dir is the root of the data release:
     02_point_clouds/mvs/<plot>_<date>.ply                 dense MVS, in PCS
     02_point_clouds/tls_lcs/<plot>_<date>.ply             TLS, in LCS
-    02_point_clouds/transformations/                      target_pcs.csv, query_lcs.csv, tmatrix_4x4_pcs_to_lcs.txt,
+    02_point_clouds/transformations/                      target_pcs.csv, query_lcs.csv, tmatrix_4x4_pcs_to_lcs.txt
+                                                          (joint matrix for the genotype polygons, fit_joint_pcs_to_lcs.py),
                                                           gscs_to_pcs/ (the paper's ICP matrices, see --icp_dir)
-    00_raw/20240717/genotype_polygons/*.json              genotype polygons, in LV95
+    00_raw/<date>/genotype_polygons/*.json                genotype polygons, in LV95 (--date, default 20240717)
 
 Wheat heads, one of:
     --heads_dir         Wheat3DGS heads only, <plot>_<date>/*.ply, in LV95 (or in PCS with --heads_in_pcs).
@@ -44,6 +45,7 @@ def parse_args():
                              "<data_dir>/02_point_clouds/transformations/gscs_to_pcs for the paper's reconstruction "
                              "(D1); leave out for one without the principal point shift (D3)")
     parser.add_argument("--heads_in_pcs", action="store_true", help="--heads_dir is already in PCS: skip step 3")
+    parser.add_argument("--date", default="20240717", help="acquisition date, for <data_dir>/00_raw/<date>/genotype_polygons")
     parser.add_argument("--seed", type=int, default=0, help="seed of the random subsampling in step 5")
     parser.add_argument("--min_points", type=int, default=50, help="step 5 skips heads with fewer points")
     args = parser.parse_args()
@@ -153,7 +155,7 @@ def main():
     for method in ["gs", "tls", "mvs"]:
         assigned = str(results / "genotypes_assigned" / method)
         assign_genotype(data_relative_path=str(results / f"{method}_traits_and_bboxes"),
-                        genotype_bboxes_relative_path=str(data / "00_raw/20240717/genotype_polygons"),
+                        genotype_bboxes_relative_path=str(data / "00_raw" / args.date / "genotype_polygons"),
                         output_relative_path=assigned,
                         transformations_lcs2pcs_plots=lcs_2_pcs,
                         transformations_pcs2lcs_all=str(transformations / "tmatrix_4x4_pcs_to_lcs.txt"))

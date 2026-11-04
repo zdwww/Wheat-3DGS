@@ -1,0 +1,55 @@
+#!/usr/bin/env python3
+"""
+Fit the joint PCS -> LCS matrix that s7_assign_genotype.py uses to move the genotype polygons into the TLS
+coordinate system (tmatrix_4x4_pcs_to_lcs.txt).
+
+Same target files as s1 (query_lcs.csv: target centres in PCS, target_pcs.csv: the same targets in LCS; the
+names follow the original scripts) and the same Kabsch fit, but one rigid transformation over the targets of all
+plots of one date. Plot 466 is left out by default, as for the 20240717 matrix of the paper (its targets were
+corrupted); this reproduces that matrix exactly.
+
+Usage:
+    python scripts/phenotyping/fit_joint_pcs_to_lcs.py --transformations_dir <data_dir>/02_point_clouds/transformations \
+        --date 1707 [--exclude 466] [--out <transformations_dir>/tmatrix_4x4_pcs_to_lcs.txt]
+"""
+import argparse
+from pathlib import Path
+
+import numpy as np
+import pandas as pd
+
+from functions.transformations_functions import estimate_transformation, get_4x4_tmatrix_from_Rt
+
+
+def main():
+    parser = argparse.ArgumentParser(description="Joint PCS -> LCS matrix for the genotype polygons (step 7)")
+    parser.add_argument("--transformations_dir", required=True, help="folder with query_lcs.csv and target_pcs.csv")
+    parser.add_argument("--date", required=True, help="DDMM of the Set_IDs to use, e.g. 1707 for 461_1707")
+    parser.add_argument("--exclude", nargs="*", default=["466"], help="plots left out of the fit (default: 466)")
+    parser.add_argument("--out", default=None, help="default: <transformations_dir>/tmatrix_4x4_pcs_to_lcs.txt")
+    args = parser.parse_args()
+
+    folder = Path(args.transformations_dir)
+    pcs = pd.read_csv(folder / "query_lcs.csv", encoding="utf-8-sig")
+    lcs = pd.read_csv(folder / "target_pcs.csv", encoding="utf-8-sig")
+    pairs = pcs.merge(lcs, on=["Set_ID", "Target_ID"], suffixes=("_pcs", "_lcs"))
+    plot, date = pairs["Set_ID"].str.split("_").str[0], pairs["Set_ID"].str.split("_").str[1]
+    pairs = pairs[(date == args.date) & ~plot.isin(args.exclude)]
+    if len(pairs) < 3:
+        raise SystemExit(f"only {len(pairs)} target pairs for date {args.date}")
+
+    query = pairs[["X_pcs", "Y_pcs", "Z_pcs"]].to_numpy()
+    target = pairs[["X_lcs", "Y_lcs", "Z_lcs"]].to_numpy()
+    R, t, _ = estimate_transformation(query, target)
+    matrix = get_4x4_tmatrix_from_Rt(R, t)
+
+    residuals = np.linalg.norm(query @ R.T + t - target, axis=1) * 1000
+    for set_id, res in pd.Series(residuals, index=pairs["Set_ID"].to_numpy()).groupby(level=0):
+        print(f"{set_id}: max residual {res.max():.1f} mm")
+    out = Path(args.out) if args.out else folder / "tmatrix_4x4_pcs_to_lcs.txt"
+    np.savetxt(out, matrix)
+    print(f"{len(pairs)} targets of {pairs['Set_ID'].nunique()} plots -> {out}")
+
+
+if __name__ == "__main__":
+    main()

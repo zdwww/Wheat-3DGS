@@ -105,7 +105,9 @@ def main(data_relative_path=DATA_RELATIVE_PATH, genotype_bboxes_relative_path=GE
         # xyz += global_shift
 
         # Load and apply target-based transformation matrix (from file: "{identifier}_transformation.txt")
-        identifier_and_date = identifier + "_1707"
+        # "<plot>_<date>" from the traits file name (e.g. "461_1707"), as written by s5
+        m_date = re.match(r"(\d{3}_\d{4})", traits_file.stem)
+        identifier_and_date = m_date.group(1) if m_date else identifier + "_1707"
         tb_file = tb_matrices_folder / f"{identifier_and_date}.txt"
         if not tb_file.exists():
             print(f"Target-based matrix file {tb_file.name} not found for {traits_file.name}, skipping.")
