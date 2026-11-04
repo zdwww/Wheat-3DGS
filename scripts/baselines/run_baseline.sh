@@ -39,6 +39,9 @@ tf=$prep_dir/transforms.json  # from prepare_data.py (no transforms.json in the 
 # Apptainer: triton (torch.compile, used by splatfacto only for its view matrix) finds libcuda.so only via the ldconfig
 # cache, which --nv doesn't update; without compiling, the results are the same
 [ -d /.singularity.d ] && export TORCHDYNAMO_DISABLE=1
+# nerfacc creates its build folder (default ~/.cache/torch_extensions) on import; the home can be read-only in
+# Apptainer on clusters (e.g. Euler), so default to /tmp
+export TORCH_EXTENSIONS_DIR=${TORCH_EXTENSIONS_DIR:-/tmp/torch_extensions_$(id -u)}
 ns=()  # nerfstudio 1.1.5 of the image; FruitNeRF has its own env (nerfstudio 0.3.2)
 
 case $method in
