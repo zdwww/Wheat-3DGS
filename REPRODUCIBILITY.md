@@ -4,7 +4,7 @@ This page describes how to reproduce the paper's results, three issues we found 
 
 ## Reproducing the paper
 
-Use the original dataset, the provided 2D masks (`yolosam.zip`) and `run_3d_seg_paper.py` with its defaults (`--iou_threshold 0.6 --num_match 5`, height filter on), e.g. with `run_wheat_3dgs.sh`. Our re-run (15k iterations, `--seed 0`) gives a 7-plot mean IoU / precision / recall / F1 of .506 / .806 / .576 / .669 (Table 2: .50 / .81 / .57 / .67) and PSNR / SSIM / LPIPS of 20.42 / .639 / .323 (supplementary NVS table, 3DGS at 15k iterations: 20.416 / .639 / .323). For the trait comparison with the laser scans (Tables 3 and 4), run Step 6 of the README with `--paper_heads_dir` on the paper's head point clouds of all three methods (included in the data release): this gives 3DGS vs TLS length ρ .49 and MAPE 15.0 (Table 3: .51 and 15.1). The exact values cannot be recovered, because the paper-era scripts subsampled large heads without a fixed seed (seeds give ρ .485-.500). Laser-scan heads newly cut by the released scripts are smaller than the paper's, so new runs give higher agreement than Table 3 (see the table below).
+Use the original dataset, the provided 2D masks (`yolosam.zip`) and `run_3d_seg_paper.py` with its defaults (`--iou_threshold 0.6 --num_match 5`, height filter on), e.g. with `run_wheat_3dgs.sh`. Our re-run (15k iterations, `--seed 0`) gives a 7-plot mean IoU / precision / recall / F1 of .506 / .806 / .576 / .669 (Table 2: .50 / .81 / .57 / .67) and PSNR / SSIM / LPIPS of 20.42 / .639 / .323 (supplementary NVS table, 3DGS at 15k iterations: 20.416 / .639 / .323). For the trait comparison with the laser scans (Tables 3 and 4), run Step 6 of the README with `--paper_heads_dir` on the paper's head point clouds of all three methods (included in the data release): this gives 3DGS vs TLS length ρ .49 and MAPE 15.0 (Table 3: .51 and 15.1), and ANOVA F for length / width / volume of 14.6 / 11.1 / 9.2, 4.6 / 35.0 / 7.9 and 6.3 / 10.6 / 7.2 for TLS / 3DGS / MVS (Table 4: 15.2 / 11.2 / 10.1, 5.2 / 35.0 / 8.5 and 6.9 / 10.8 / 7.1). The exact values cannot be recovered, because the paper-era scripts subsampled large heads without a fixed seed (seeds give ρ .485-.500). Laser-scan heads newly cut by the released scripts are smaller than the paper's, so new runs give higher agreement than Table 3 (see the table below).
 
 ## Issues found after publication
 
@@ -53,3 +53,18 @@ Reading the table:
 - At 1280 px the detector also finds some of the white marker plates, which can become false heads (here on 4 of 7 plots).
 
 Caveats: Table 2 uses a single labelled view per plot. In the trait comparison, the laser-scan heads are cut with each Wheat3DGS head's bounding box, so the two lengths are not fully independent.
+
+## Second date: 19 July 2024
+
+The data release also contains 19 July 2024 (not in the paper), with darker illumination. Corrected track (`run_3d_seg_paper.py`, 1280 px masks, height filter off, seed 0), traits against the laser scans as in Step 6, without `--icp_dir`, with `--date 20240719` (the MVS point clouds are our own reconstruction of that date). There are no manual labels for Table 2, and these results have not been checked visually.
+
+| Date | Method vs TLS | Saved heads | ρ length | MAE L / W (cm) / V (cm³) | MAPE L / W / V (%) | ANOVA F L / W / V | Cohen's f L / W / V |
+|---|---|---|---|---|---|---|---|
+| 17 July 2024 | Wheat3DGS | 5518 | .78 | 0.98 / 0.28 / 9.9 | 12.9 / 21.5 / 50.2 | 14.2 / 66.7 / 28.4 | .34 / .72 / .48 |
+| | MVS | | .72 | 1.11 / 0.36 / 9.7 | 14.9 / 29.6 / 54.0 | 13.6 / 13.8 / 14.8 | .33 / .33 / .35 |
+| | TLS | | | | | 21.2 / 16.0 / 12.9 | .41 / .37 / .33 |
+| 19 July 2024 | Wheat3DGS | 4119 | .72 | 0.97 / 0.26 / 7.9 | 13.6 / 22.7 / 78.2 | 8.2 / 22.2 / 11.4 | .30 / .49 / .35 |
+| | MVS | | .65 | 1.14 / 0.40 / 8.9 | 16.4 / 35.8 / 95.2 | 8.4 / 10.2 / 9.7 | .30 / .33 / .33 |
+| | TLS | | | | | 15.4 / 9.5 / 9.9 | .40 / .32 / .33 |
+
+MVS and TLS heads are cut with the Wheat3DGS bounding boxes, so all three methods measure the same heads. ANOVA F (as in Table 4 of the paper) and Cohen's f measure how well a trait separates the genotypes. F grows with the number of heads and with duplicate heads (see the note in Step 3 of the README), so compare it between methods within a date only; Cohen's f is the effect size (between-genotype vs within-genotype spread), independent of the number of heads, and can be compared between dates. Both are computed by step 9 (`compute_anova_stats`); Table 4 reports only F.
