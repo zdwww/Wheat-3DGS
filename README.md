@@ -193,10 +193,38 @@ python scripts/phenotyping/s0_run_all.py --data_dir <data_release> --paper_heads
 | `--seed` | `int` | `s0_run_all.py`: random seed for subsampling heads with more than 5000 points. The same seed gives the same result. |
 | `--min_points` | `int` | `s0_run_all.py`: heads with fewer points are skipped and reported. Default: 50. |
 
-Traits per head are saved in `<results>/traits_and_genotypes_all_methods` and the tables in `<results>/statistics_tables_3_and_4`. The expected data layout is described in `s0_run_all.py` and the individual steps in `scripts/phenotyping/Readme.txt`. For trait extraction alone (without the TLS/MVS comparison), on any folder of wheat head point clouds (`.ply` or `.txt`), run `python wheatheadsmorphology/main.py -c wheatheadsmorphology/config.yaml` (see [its README](wheatheadsmorphology/README.md)); the Step 6 scripts use the same functions.Note that per-row values depend noticeably on the random subsampling, so small differences between runs or methods in those columns are not meaningful.
+Traits per head are saved in `<results>/traits_and_genotypes_all_methods` and the tables in `<results>/statistics_tables_3_and_4`. The expected data layout is described in `s0_run_all.py` and the individual steps in `scripts/phenotyping/Readme.txt`. For trait extraction alone (without the TLS/MVS comparison), on any folder of wheat head point clouds (`.ply` or `.txt`), run `python wheatheadsmorphology/main.py -c wheatheadsmorphology/config.yaml` (see [its README](wheatheadsmorphology/README.md)); the Step 6 scripts use the same functions. Note that per-row values depend noticeably on the random subsampling, so small differences between runs or methods in those columns are not meaningful.
 
-## Baseline
-To reproduce the baseline results presented in the paper (i.e. [FruitNeRF](https://github.com/meyerls/FruitNeRF)), please refer to the original repository and the scripts in the `scripts` folder.
+## Baselines
+The NeRF and nerfstudio-based baselines of the paper (supplementary novel view synthesis table: Instant-NGP, Nerfacto, FruitNeRF and 3DGS\*, i.e. nerfstudio's splatfacto; FruitNeRF in Table 2) run in a separate Docker image (`docker/baselines/`): [nerfstudio](https://github.com/nerfstudio-project/nerfstudio) 1.1.5 for nerfacto, splatfacto and instant-ngp, plus a conda env `fruitnerf` with nerfstudio 0.3.2 and [FruitNeRF](https://github.com/meyerls/FruitNeRF) at the commit we used, with a small patch (`docker/baselines/fruitnerf-cde0974.patch`: evaluation fixes, use the train/test split of `transforms.json`).
+```bash
+docker build -t wheat3dgs-baselines:ns1.1.5 docker/baselines    # ~1 h (compiles tiny-cuda-nn), no GPU needed
+docker run --gpus all -it --shm-size=16g --user $(id -u):$(id -g) -e HOME=/tmp \
+    -v $PWD:/workspace/Wheat-GS -w /workspace/Wheat-GS wheat3dgs-baselines:ns1.1.5
+```
+Inside the container (with Apptainer: `SIF=wheat3dgs-baselines.sif bash scripts/apptainer_job.sh <command>`, the image built with `apptainer build wheat3dgs-baselines.sif docker-daemon://wheat3dgs-baselines:ns1.1.5`):
+```bash
+python scripts/baselines/prepare_data.py data/plot_46{1..7}
+for p in data/plot_46?; do
+  for m in nerfacto splatfacto instant-ngp fruit_nerf; do bash scripts/baselines/run_baseline.sh $m $p output/baselines; done
+done
+python scripts/baselines/summarize_results.py output/baselines
+```
+The dataset already contains what nerfacto, splatfacto and FruitNeRF read: `transforms.json` (cameras, train/test split, `semantics/` for FruitNeRF) and `sparse_pc.ply` (the COLMAP points for splatfacto). `prepare_data.py` only adds the split files that instant-ngp needs (`transforms_{train,val,test}.json`). For your own data without these files, it writes `transforms.json` from `sparse/0` (the same way the released ones were made), `--sparse_pc` adds `sparse_pc.ply`, and `--semantics_from <masks_dir>` builds FruitNeRF's `semantics/` from a mask set (per image, the union of the instance masks). `run_baseline.sh` trains with the paper's settings and evaluates on the test views (`<output>/<plot>/<method>/<timestamp>/test_results.json`); `summarize_results.py` writes the per-plot and mean metrics (PSNR, SSIM, LPIPS, training time, model size) to `<output>/summary/`.
+
+| Parameter | Type | Description |
+| :-------: | :--: | :---------: |
+| `--sparse_pc` | flag | `run_baseline.sh`, splatfacto: start from the COLMAP points (about 3 dB better) instead of random points (the paper's setting, except plot 461). Runs go to `<output>/<plot>/splatfacto-sparse_pc/`. |
+| `--prep_dir` | `str` | `run_baseline.sh`: where `prepare_data.py` wrote its files, if it was run with `--output_dir` (to keep the dataset read-only). |
+| `--wandb` | flag | `run_baseline.sh`: log to Weights & Biases instead of TensorBoard. |
+| `-- <args>` | | `run_baseline.sh`: further arguments for `ns-train`, e.g. `-- --machine.seed 1`. |
+
+For FruitNeRF in Table 2, render its wheat-head semantics on the test views and score them like Wheat3DGS (Step 5):
+```bash
+conda run -n fruitnerf python scripts/baselines/fruitnerf_render_semantics.py --load-config <run>/config.yml --output-dir <run>/semantics_test
+python evaluate_2D.py -s <dataset_path_1> <dataset_path_2> ... --pred_dir <run_1>/semantics_test <run_2>/semantics_test ...
+```
+With only 30 training views, FruitNeRF sometimes converges to a wrong geometry, depending on the random seed: the training PSNR looks normal, but the test views reach only about 12 dB. If that happens, train again with another seed (`-- --machine.seed 1`). Our re-run of the baselines and its differences from the paper are in [REPRODUCIBILITY.md](REPRODUCIBILITY.md#baselines).
 
 <!-- ## Results
 <p align="center">

@@ -15,7 +15,7 @@ Use the original dataset, the provided 2D masks (`yolosam.zip`) and `run_3d_seg_
 **3. Height filter.** The 3D segmentation lifts each 2D mask only to the Gaussians above the plot's mean height, to exclude the ground. In plots with short genotypes this also removes whole rows of wheat heads (plot 466: 38% of the labelled head area lies below the mean height and is never segmented), and biases the heads towards the tall genotypes. Disable it with `--no_height_filter`.
 
 ## Corrected track (recommended for new work)
-
+Besides using the corrected dataset (principal point at image center), we recommend using 1280 px masks (the paper used the default 640 px for YOLOv5) and disabling the height filter. The following commands reproduce the corrected track (7-plot mean IoU / precision / recall / F1 of .617 / .736 / .794 / .760, length ρ .78, MAPE 12.9 / 21.5 / 50.2%):
 ```bash
 python scripts/generate_masks.py -s <dataset_path> --img_size 1280 --out <dataset_path>/yolosam_1280
 python train_vanilla_3dgs.py -s <dataset_path> -m <model_path> --resolution 1 --eval
@@ -54,9 +54,37 @@ Reading the table:
 
 Caveats: Table 2 uses a single labelled view per plot. In the trait comparison, the laser-scan heads are cut with each Wheat3DGS head's bounding box, so the two lengths are not fully independent.
 
+## Baselines
+
+Re-run of the baselines with `scripts/baselines/` (README: Baselines), 7-plot means, PSNR / SSIM / LPIPS of the supplementary novel view synthesis table:
+
+| Method | Paper | Original dataset, our re-run | Corrected dataset |
+|---|---|---|---|
+| Instant-NGP | 20.89 / .662 / .506 | 20.90 / .663 / .506 | 25.10 / .758 / .449 |
+| Nerfacto | 25.39 / .769 / .384 | 25.78 / .776 / .371 | 25.83 / .779 / .365 |
+| FruitNeRF | 23.38 / .752 / .422 | 23.84 / .757 / .416 | 23.91 / .756 / .417 ¹ |
+| 3DGS\* (splatfacto), initialized as in the paper ² | 25.45 / .843 / .226 | 25.18 / .841 / .229 | |
+| splatfacto from the COLMAP points (`--sparse_pc`) | | 28.27 / .886 / .159 | 28.27 / .886 / .158 |
+| 3DGS (Inria, 15k iterations; Step 1 of Wheat3DGS) ³ | 20.42 / .639 / .323 | 20.42 / .639 / .323 | 28.28 / .883 / .200 |
+
+and FruitNeRF in Table 2 (IoU / precision / recall / F1): paper .34 / .95 / .35 / .50; original dataset .31 / .95 / .32 / .46 (seed 1: .37 / .95 / .38 / .52, mean of both .34 / .95 / .35 / .49); corrected dataset .41 / .93 / .42 / .57 ¹.
+
+¹ With `-- --machine.seed 1`: with nerfstudio's default seed, FruitNeRF converged to a wrong geometry on 6 of the 7 corrected plots (test PSNR about 12 dB, IoU below .1), see below.
+
+² Random initial points, except plot 461 (COLMAP points), as in the paper's runs.
+
+³ Evaluated with `metrics.py`, whose LPIPS uses VGG instead of AlexNet: compare its LPIPS only within this row (see the notes below).
+
+Notes:
+- **Instant-NGP and the principal point.** The paper trained Instant-NGP with nerfstudio's `blender-data` dataparser, which, like 3DGS, ignores the principal point. On the corrected dataset it gains 4.2 dB PSNR, and 3DGS 7.9 dB, reaching the same PSNR / SSIM as splatfacto from the COLMAP points (3DGS also starts from them): with the same starting points, the whole gap between 3DGS and 3DGS\* in the paper is the principal-point shift. Nerfacto and splatfacto, which use the principal point, give the same results on both datasets.
+- **LPIPS.** The nerfstudio rows of the novel view synthesis table (Instant-NGP, Nerfacto, FruitNeRF, 3DGS\*) use LPIPS with AlexNet (`ns-eval`), the rows evaluated with `metrics.py` (3DGS, 2DGS, SuGaR) LPIPS with VGG, which gives clearly higher values for the same images (e.g. FruitNeRF's test renders of plot 461 at half resolution: .33 with AlexNet, .45 with VGG). LPIPS is therefore not comparable between these two groups.
+- **Splatfacto initialization.** With random initial points the results vary by up to 3 dB between runs (plot 462: 25.2 in the paper's run, 22.6 in ours); starting from the COLMAP points is about 3 dB better and stable (all plots within 0.3 dB across our runs).
+- **FruitNeRF.** With 30 training views, whether FruitNeRF converges depends on the random seed (and on the order of the frames in `transforms.json`, which changes the random draws): a failed run has a normal training PSNR, but about 12 dB on the test views. On the original dataset both seeds we tried converged; per plot, Table 2 still varies by ±.1 IoU between seeds. In Table 2 of the paper, MSE / SSIM of FruitNeRF (.05 / .70) match its sigmoid output before thresholding (.06 / .63 with the paper's checkpoints); `evaluate_2D.py` compares binary masks (.08 / .87).
+- Nerfacto ran with nerfstudio 1.1.3 for the paper and 1.1.5 here (+0.4 dB, mostly plot 466).
+
 ## Second date: 19 July 2024
 
-The data release also contains 19 July 2024 (not in the paper), with darker illumination. Corrected track (`run_3d_seg_paper.py`, 1280 px masks, height filter off, seed 0), traits against the laser scans as in Step 6, without `--icp_dir`, with `--date 20240719` (the MVS point clouds are our own reconstruction of that date). There are no manual labels for Table 2, and these results have not been checked visually.
+The data release also contains a second date:  19 July 2024, not evaluated in the paper, but for which we provide some reference results with our pipeline here. Corrected track (`run_3d_seg_paper.py`, 1280 px masks, height filter off, seed 0), traits against the laser scans as in Step 6, without `--icp_dir`, with `--date 20240719` (the MVS point clouds are our own reconstruction of that date). There are no manual labels for Table 2, and these results have not been checked visually.
 
 | Date | Method vs TLS | Saved heads | ρ length | MAE L / W (cm) / V (cm³) | MAPE L / W / V (%) | ANOVA F L / W / V | Cohen's f L / W / V |
 |---|---|---|---|---|---|---|---|
