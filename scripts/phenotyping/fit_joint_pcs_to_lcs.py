@@ -10,7 +10,7 @@ out with --exclude. For 20240717, plot 466 is 18 cm off and the paper's matrix w
 (--date 20240717 --exclude 466 reproduces it exactly); on 20240719 all plots fit.
 
 Usage:
-    python scripts/phenotyping/fit_joint_pcs_to_lcs.py --transformations_dir <data_dir>/02_point_clouds/transformations \
+    python scripts/phenotyping/fit_joint_pcs_to_lcs.py --transformations_dir <data_dir>/02_point_clouds/20240719/transformations \
         --date 20240719 [--exclude <plot> ...] [--out <transformations_dir>/tmatrix_4x4_pcs_to_lcs.txt]
 """
 import argparse

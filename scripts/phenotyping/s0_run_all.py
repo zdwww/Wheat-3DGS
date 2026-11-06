@@ -2,13 +2,14 @@
 """
 Runs the whole TLS comparison (steps 1-9, see Readme.txt) for one set of Wheat3DGS wheat heads.
 
---data_dir is the root of the data release:
-    02_point_clouds/mvs/<plot>_<date>.ply                 dense MVS, in PCS
-    02_point_clouds/tls_lcs/<plot>_<date>.ply             TLS, in LCS
-    02_point_clouds/transformations/                      target_pcs.csv, query_lcs.csv, tmatrix_4x4_pcs_to_lcs.txt
+--data_dir is the root of the data release, with one folder per acquisition date (--date YYYYMMDD, default 20240717;
+<DDMM> below is the same date in the file names, e.g. 461_1707):
+    02_point_clouds/<date>/mvs/<plot>_<DDMM>.ply          dense MVS, in PCS
+    02_point_clouds/<date>/tls_lcs/<plot>_<DDMM>.ply      TLS, in LCS
+    02_point_clouds/<date>/transformations/               target_pcs.csv, query_lcs.csv, tmatrix_4x4_pcs_to_lcs.txt
                                                           (joint matrix for the genotype polygons, fit_joint_pcs_to_lcs.py),
                                                           gscs_to_pcs/ (the paper's ICP matrices, see --icp_dir)
-    00_raw/<date>/genotype_polygons/*.json                genotype polygons, in LV95 (--date, default 20240717)
+    00_raw/<date>/genotype_polygons/*.json                genotype polygons, in LV95
 
 Wheat heads, one of:
     --heads_dir         Wheat3DGS heads only, <plot>_<date>/*.ply, in LV95 (or in PCS with --heads_in_pcs).
@@ -42,10 +43,10 @@ def parse_args():
     parser.add_argument("--results_dir", required=True, help="output folder (empty)")
     parser.add_argument("--icp_dir", default=None,
                         help="<plot>_<date>_ICP.txt matrices applied after LV95 -> PCS: "
-                             "<data_dir>/02_point_clouds/transformations/gscs_to_pcs for the paper's reconstruction "
+                             "<data_dir>/02_point_clouds/20240717/transformations/gscs_to_pcs for the paper's reconstruction "
                              "(D1); leave out for one without the principal point shift (D3)")
     parser.add_argument("--heads_in_pcs", action="store_true", help="--heads_dir is already in PCS: skip step 3")
-    parser.add_argument("--date", default="20240717", help="acquisition date, for <data_dir>/00_raw/<date>/genotype_polygons")
+    parser.add_argument("--date", default="20240717", help="acquisition date YYYYMMDD: reads <data_dir>/02_point_clouds/<date> and 00_raw/<date>")
     parser.add_argument("--seed", type=int, default=0, help="seed of the random subsampling in step 5")
     parser.add_argument("--min_points", type=int, default=50, help="step 5 skips heads with fewer points")
     args = parser.parse_args()
@@ -60,7 +61,8 @@ def main():
     args = parse_args()
     data = Path(args.data_dir).resolve()
     results = Path(args.results_dir).resolve()
-    transformations = data / "02_point_clouds/transformations"
+    point_clouds = data / "02_point_clouds" / args.date
+    transformations = point_clouds / "transformations"
     lcs_2_pcs = str(results / "transformations_lcs_2_pcs")
     gs_bboxes = str(results / "gs_traits_and_bboxes")
     tables = str(results / "traits_and_genotypes_all_methods")
@@ -79,7 +81,7 @@ def main():
     if not args.paper_heads_dir:
         # 2) Apply transformations
         print("2) Applying transformations to TLS point clouds (LCS ->PCS)")
-        apply_transformations(data_relative_path=str(data / "02_point_clouds/tls_lcs"),
+        apply_transformations(data_relative_path=str(point_clouds / "tls_lcs"),
                               output_relative_path=str(results / "tls_point_clouds_in_pcs"),
                               transformations_relative_path=lcs_2_pcs)
 
@@ -97,7 +99,7 @@ def main():
                           target_data_relative_path=gs_pcs)
         # MVS
         print("4) Trim MVS point clouds to only points close to Wheat3DGS output point clouds")
-        trim_by_proximity(query_data_relative_path=str(data / "02_point_clouds/mvs"),
+        trim_by_proximity(query_data_relative_path=str(point_clouds / "mvs"),
                           output_relative_path=str(results / "mvs_point_clouds_in_pcs_trimmed"),
                           target_data_relative_path=gs_pcs)
 
