@@ -7,3 +7,7 @@ output
 outputs
 results
 weights
+# local notes and caches, never part of the image
+CLAUDE.md
+PLAN.md
+**/__pycache__
