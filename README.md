@@ -243,7 +243,7 @@ bash run.sh <dataset_path> <model_path> <exp_name> [port]
 Then open `http://localhost:8080`. On a remote machine, forward the port (e.g. `ssh -L 8080:localhost:8080 <host>`, or the Ports panel of VS Code Remote); with Docker, add `-p 8080:8080` to `docker run`. Navigation: left-drag to orbit, right-drag to pan, scroll to zoom; `W`/`S` forward/back, `A`/`D` left/right, `Q`/`E` down/up, arrow keys to turn. Its packages (viser, nerfview, splines, jaxtyping) are in `requirements.txt` and the Docker image.
 
 ## Acknowledgement
-Our implementation is based on the original [3D Gaussian Splatting](https://github.com/graphdeco-inria/gaussian-splatting) and [FlashSplat](https://github.com/florinshen/FlashSplat). We thank the authors for their great work and open-source contributions.
+Our implementation is based on the original [3D Gaussian Splatting](https://github.com/graphdeco-inria/gaussian-splatting) and [FlashSplat](https://github.com/florinshen/FlashSplat). We thank the authors for their great work and open-source contributions. We also thank Patrick Eugster for finding the principal-point and 2D detection-resolution issues of the original release (see [REPRODUCIBILITY.md](REPRODUCIBILITY.md)) during his bachelor thesis (ETH Zurich, 2026).
 
 ## License
 This project is licensed under the MIT License - see the [LICENSE](LICENSE.md) file for details. Please note that the 3D Gaussian Splatting code base, however, is licensed under a different license, which can be found in the [LICENSE_3DGS](LICENSE_3DGS.md) file.
