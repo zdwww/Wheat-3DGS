@@ -28,7 +28,7 @@ git clone --recursive https://github.com/zdwww/Wheat-3DGS.git && cd Wheat-3DGS
 docker run --gpus all -it --shm-size=16g --user $(id -u):$(id -g) -e HOME=/tmp \
     -v $PWD:/workspace/Wheat-GS joaquingajardo/wheat3dgs:torch1.13-cu116
 ```
-This mounts your clone (code, `data/`, `output/`) into the container; run the commands below inside it. Without a clone, mount only your folders, e.g. `-v <data>:/workspace/Wheat-GS/data -v <output>:/workspace/Wheat-GS/output`, and the code in the image is used. Building the image takes about 20 min and needs no GPU. The CUDA extensions are compiled for GPU architectures 7.0–8.6 and run on newer GPUs through PTX. For the viewer, add `-p 8080:8080`.
+This mounts your clone (code, `data/`, `output/`) into the container; run the commands below inside it. Without a clone, mount only your folders, e.g. `-v <data>:/workspace/Wheat-GS/data -v <output>:/workspace/Wheat-GS/output`, and the code in the image is used. Building the image takes about 20 min and needs no GPU. The CUDA extensions are compiled for GPU architectures 7.0–8.6 and run on newer GPUs through PTX. For the viewer, add `-p 8080:8080`. The tag `torch1.13-cu116` may receive bug-fix rebuilds; `v1.0-torch1.13-cu116` (digest `sha256:dec1379e37b52af211faa6badbee56093aa1dc4e2cb67acd705d1dd64b6030c7`) is the exact image of this release.
 
 ### Apptainer (HPC clusters)
 ```bash
