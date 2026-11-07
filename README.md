@@ -5,7 +5,7 @@
 
 <div align="center"> 
 
-[Project Page](https://joaquin-gajardo.github.io/wheat3dgs/) | [Paper](https://openaccess.thecvf.com/content/CVPR2025W/V4A/html/Zhang_Wheat3DGS_In-field_3D_Reconstruction_Instance_Segmentation_and_Phenotyping_of_Wheat_CVPRW_2025_paper.html) |  [Arxiv](https://arxiv.org/abs/2504.06978) | [Data](http://hdl.handle.net/20.500.11850/807753)
+[Project Page](https://joaquin-gajardo.github.io/wheat3dgs/) | [Paper](https://openaccess.thecvf.com/content/CVPR2025W/V4A/html/Zhang_Wheat3DGS_In-field_3D_Reconstruction_Instance_Segmentation_and_Phenotyping_of_Wheat_CVPRW_2025_paper.html) |  [Arxiv](https://arxiv.org/abs/2504.06978) | [Video](https://www.youtube.com/watch?v=NULPz1hoB_o) | [Data](http://hdl.handle.net/20.500.11850/807753)
 
   <img src="assets/teaser.png" width="400">
 </div>
