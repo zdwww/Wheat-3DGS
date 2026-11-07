@@ -3,6 +3,7 @@ Generate the 2D wheat-head masks used by the 3D segmentation (the contents of yo
 YOLOv5 wheat-head boxes per image, then one SAM mask per box.
 
 The defaults (--conf 0.25, --img_size 640, SAM vit_h) reproduce the masks provided with our dataset (yolosam.zip).
+The corrected dataset's yolosam_640/ and yolosam_1280/ were made with --img_size 640 and 1280.
 For each plot folder it writes:
     bboxes/<image>.pt         N x 4 boxes (x1, y1, x2, y2) in image pixels
     masks/<image>_<NNN>.png   one binary mask (0/255) per box, in box order
