@@ -181,9 +181,11 @@ The metrics and an overlay per view (red: overlap, gray: label only, light red: 
 for plot in 461 462 463 464 465 466 467; do
   python scripts/phenotyping/export_heads.py -s data/plot_$plot -m output/plot_$plot --exp_name run1 --out heads/${plot}_1707
 done
-python scripts/phenotyping/s0_run_all.py --data_dir <data_release> --heads_dir heads --results_dir <results>
+# original dataset (as in the paper): add --icp_dir; leave it out for the corrected dataset
+python scripts/phenotyping/s0_run_all.py --data_dir <data_release> --heads_dir heads --results_dir <results> \
+    --icp_dir <data_release>/02_point_clouds/20240717/transformations/gscs_to_pcs
 ```
-The TLS and MVS heads are cut out of the plot point clouds with bounding boxes fitted to the exported heads. Although the Wheat3DGS heads can be reproduced closely, the newly cut TLS and MVS heads differ from the paper's (the paper's TLS heads are larger, possibly due to older different HDBSCAN or SOR filtering parameters in [step 5](scripts/phenotyping/s5_wheatheadmorphology.py)), so the trait comparison gives different numbers than Tables 3 and 4. To reproduce Tables 3 and 4 of the paper, run the comparison on the paper's head point clouds of all three methods, included in the data release:
+Without `--icp_dir`, heads from the original dataset are 1-2 cm off the laser scans, and the comparison still runs without an error. The TLS and MVS heads are cut out of the plot point clouds with bounding boxes fitted to the exported heads. Although the Wheat3DGS heads can be reproduced closely, the newly cut TLS and MVS heads differ from the paper's (the paper's TLS heads are larger, possibly due to older different HDBSCAN or SOR filtering parameters in [step 5](scripts/phenotyping/s5_wheatheadmorphology.py)), so the trait comparison gives different numbers than Tables 3 and 4. To reproduce Tables 3 and 4 of the paper, run the comparison on the paper's head point clouds of all three methods, included in the data release:
 ```bash
 python scripts/phenotyping/s0_run_all.py --data_dir <data_release> --paper_heads_dir <data_release>/03_results/paper_heads --results_dir <results>
 ```
