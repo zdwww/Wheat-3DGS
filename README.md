@@ -198,11 +198,11 @@ Traits per head are saved in `<results>/traits_and_genotypes_all_methods` and th
 ## Baselines
 The NeRF and nerfstudio-based baselines of the paper (supplementary novel view synthesis table: Instant-NGP, Nerfacto, FruitNeRF and 3DGS\*, i.e. nerfstudio's splatfacto; FruitNeRF in Table 2) run in a separate Docker image (`docker/baselines/`): [nerfstudio](https://github.com/nerfstudio-project/nerfstudio) 1.1.5 for nerfacto, splatfacto and instant-ngp, plus a conda env `fruitnerf` with nerfstudio 0.3.2 and [FruitNeRF](https://github.com/meyerls/FruitNeRF) at the commit we used, with a small patch (`docker/baselines/fruitnerf-cde0974.patch`: evaluation fixes, use the train/test split of `transforms.json`).
 ```bash
-docker build -t wheat3dgs-baselines:ns1.1.5 docker/baselines    # ~1 h (compiles tiny-cuda-nn), no GPU needed
+docker pull joaquingajardo/wheat3dgs-baselines:ns1.1.5    # or build it (~1 h, no GPU needed): docker build -t joaquingajardo/wheat3dgs-baselines:ns1.1.5 docker/baselines
 docker run --gpus all -it --shm-size=16g --user $(id -u):$(id -g) -e HOME=/tmp \
-    -v $PWD:/workspace/Wheat-GS -w /workspace/Wheat-GS wheat3dgs-baselines:ns1.1.5
+    -v $PWD:/workspace/Wheat-GS -w /workspace/Wheat-GS joaquingajardo/wheat3dgs-baselines:ns1.1.5
 ```
-Inside the container (with Apptainer: `SIF=wheat3dgs-baselines.sif bash scripts/apptainer_job.sh <command>`, the image built with `apptainer build wheat3dgs-baselines.sif docker-daemon://wheat3dgs-baselines:ns1.1.5`):
+Inside the container (with Apptainer: `apptainer build wheat3dgs-baselines.sif docker://joaquingajardo/wheat3dgs-baselines:ns1.1.5`, then `SIF=wheat3dgs-baselines.sif bash scripts/apptainer_job.sh <command>`):
 ```bash
 python scripts/baselines/prepare_data.py data/plot_46{1..7}
 for p in data/plot_46?; do

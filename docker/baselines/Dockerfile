@@ -1,4 +1,4 @@
-# Baselines for the Wheat3DGS paper:  docker build -t wheat3dgs-baselines:ns1.1.5 docker/baselines
+# Baselines for the Wheat3DGS paper:  docker build -t joaquingajardo/wheat3dgs-baselines:ns1.1.5 docker/baselines
 # - nerfacto, splatfacto, instant-ngp: nerfstudio 1.1.5 of the base image, `ns-train <method> ...`
 #   (the paper used 1.1.3 for nerfacto, 1.1.5 for the others)
 # - FruitNeRF: conda env `fruitnerf` (nerfstudio 0.3.2), `conda run -n fruitnerf ns-train fruit_nerf ...`
@@ -6,7 +6,8 @@ FROM ghcr.io/nerfstudio-project/nerfstudio:1.1.5@sha256:b59b8e1012d7a43679d3234b
 
 # No GPU during the build: compile tiny-cuda-nn and nerfacc for these GPUs (same as the base image)
 ENV TCNN_CUDA_ARCHITECTURES="90;89;86;80;75;70;61" \
-    TORCH_CUDA_ARCH_LIST="6.1;7.0;7.5;8.0;8.6;8.9;9.0"
+    TORCH_CUDA_ARCH_LIST="6.1;7.0;7.5;8.0;8.6;8.9;9.0" \
+    PIP_NO_CACHE_DIR=1
 
 RUN apt-get update && apt-get install -y --no-install-recommends curl git && rm -rf /var/lib/apt/lists/* && \
     curl -fsSL -o /tmp/miniforge.sh \
