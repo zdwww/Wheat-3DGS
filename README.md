@@ -11,19 +11,15 @@
 </div>
 
 ## Updates
-- <b>[07/11/2026]</b> Full code release and data reöease on the [ETH Research Collection](http://hdl.handle.net/20.500.11850/807753) (incl. laser scans and a second date), corrected dataset and [`REPRODUCIBILITY.md`](REPRODUCIBILITY.md), Docker image, script for the 2D masks, phenotyping against laser scans (Step 6)
+- <b>[07/11/2026]</b> Full code release and data release on the [ETH Research Collection](http://hdl.handle.net/20.500.11850/807753) (incl. laser scans and a second date), corrected dataset and [`REPRODUCIBILITY.md`](REPRODUCIBILITY.md), Docker image, script for the 2D masks, phenotyping against laser scans (Step 6)
 - <b>[16/05/2025]</b> 3D gaussian segmentation viewer
 - <b>[02/05/2025]</b>  Thx [Tomi](https://github.com/tomedic) for releasing code for wheat head morphology calculation at `wheatheadsmorphology`!
 - <b>[30/04/2025]</b> Initial code release 
 
-## <s>📝 TODO List
-- [x] Share Docker setup
-- [x] Script to get initial masks
-- [x] Data to ETH research collection including laser scans
-  </s>
-
 ## 🛠️ Setup
 The setup should be very similar to the original [3D Gaussian Splatting](https://github.com/graphdeco-inria/gaussian-splatting) except we used a modified version of [differential gaussian rasterization](https://github.com/ashawkey/diff-gaussian-rasterization/tree/8829d14f814fccdaf840b7b0f3021a616583c0a1) with support of depth & alpha rendering, and an additional [flashsplat-rasterization](https://github.com/florinshen/flashsplat-rasterization/tree/189c483ffa33dd6d5661343ce496df0c6eb80a0c) submodule. We tested it with Python 3.10, PyTorch 1.13.1 and CUDA 11.6 (`requirements.txt`); the Docker image is the easiest way to get this setup.
+
+**Hardware.** An NVIDIA GPU with 24 GB of memory: training at full resolution (4096 × 3000) needs about 18 GB and `metrics.py` up to about 22 GB; the 3D segmentation needs about 9 GB. We tested on Linux (with Docker, Apptainer, and the install without Docker on a clean Ubuntu 22.04) with RTX A5000, RTX 3090 and RTX 4090 GPUs. One plot takes about 7.5 h on an RTX A5000 with `run_wheat_3dgs.sh` (training 1.5 h, 3D segmentation 5.5 h) and about 12 GB of disk.
 
 ### Docker
 ```bash
@@ -32,7 +28,7 @@ git clone --recursive https://github.com/zdwww/Wheat-3DGS.git && cd Wheat-3DGS
 docker run --gpus all -it --shm-size=16g --user $(id -u):$(id -g) -e HOME=/tmp \
     -v $PWD:/workspace/Wheat-GS joaquingajardo/wheat3dgs:torch1.13-cu116
 ```
-This mounts your clone (code, `data/`, `output/`) into the container; run the commands below inside it. Without a clone, mount only your folders, e.g. `-v <data>:/workspace/Wheat-GS/data -v <output>:/workspace/Wheat-GS/output`, and the code in the image is used. Building the image takes about 20 min and needs no GPU. The CUDA extensions are compiled for GPU architectures 7.0–8.6 and run on newer GPUs through PTX (tested on RTX A5000, RTX 3090 and RTX 4090). For the viewer, add `-p 8080:8080`.
+This mounts your clone (code, `data/`, `output/`) into the container; run the commands below inside it. Without a clone, mount only your folders, e.g. `-v <data>:/workspace/Wheat-GS/data -v <output>:/workspace/Wheat-GS/output`, and the code in the image is used. Building the image takes about 20 min and needs no GPU. The CUDA extensions are compiled for GPU architectures 7.0–8.6 and run on newer GPUs through PTX. For the viewer, add `-p 8080:8080`.
 
 ### Apptainer (HPC clusters)
 ```bash
@@ -53,7 +49,7 @@ pip install --no-build-isolation submodules/simple-knn submodules/diff-gaussian-
 ```
 
 ## 🌾 Dataset
-The data used for Wheat3DGS is on the [ETH Research Collection](http://hdl.handle.net/20.500.11850/807753) (`01_reconstruction/original/20240717/`; first released on [Google Drive](https://drive.google.com/drive/folders/1DJPs_E8-93dCysYkQ0-uxHrAcZGTZiVh)). The data and the baseline results for each plot (from 461 to 467) are structured as follows:
+The data used for Wheat3DGS is on the [ETH Research Collection](http://hdl.handle.net/20.500.11850/807753) (`01_reconstruction/original/20240717/`; first released on [Google Drive](https://drive.google.com/drive/folders/1DJPs_E8-93dCysYkQ0-uxHrAcZGTZiVh)). The data of each plot (461 to 467) is structured as follows:
 ```bash
 plot_46x/
 ├── images/            # 36 images captured by FIP, e.g. FPWW036_SR0461_FIP2_cam_01.png
@@ -73,12 +69,12 @@ plot_46x/
 ├── yolo_vis/          # for visualization only
 └── sam_vis/           # for visualization only
 ```
-Please unzip `yolosam.zip` for each plot before running the 3D segmentation, inside the plot folder (`cd plot_46x && unzip yolosam.zip`), so that `bboxes/` and `masks/` end up directly in `plot_46x/` (a `plot_46x/yolosam/` subfolder, as created by some GUI unzip tools, also works). The corrected dataset has its masks already unzipped, in `yolosam_640/` and `yolosam_1280/`, chosen with `--masks_dir` (see Step 3). The image names are structured as follows. For example, in `FPWW036_SR0461_FIP2_cam_01.png`: `FPWW036_SR0461` is shared by all images from the same plot; `FIP2` indicates the capture ID, which may appear as `1_FIP2`, `6_FIP`, or `FIP2`; and the final element `01` is the camera ID, ranging from `01` to `12` (there were three captures done per plot within 8-10 seconds, moving the rig about a meter along one axis between each capture). Our data preprocessing functions already handle the naming convention correctly. To see how the cameras are positioned in 3D and how the train/test views are distributed, open a reconstruction in the [viewer](#visualization), which shows each camera at its pose (training views in red, test views in green).
+Please unzip `yolosam.zip` for each plot before running the 3D segmentation, inside the plot folder (`cd plot_46x && unzip yolosam.zip`), so that `bboxes/` and `masks/` end up directly in `plot_46x/` (a `plot_46x/yolosam/` subfolder, as created by some GUI unzip tools, also works). The corrected dataset has its masks already unzipped, in `yolosam_640/` and `yolosam_1280/`, chosen with `--masks_dir` (see Step 3). The image names are structured as follows. For example, in `FPWW036_SR0461_FIP2_cam_01.png`: `FPWW036_SR0461` is shared by all images from the same plot; `FIP2` indicates the capture ID, which may appear as `1_FIP2`, `6_FIP`, or `FIP2`; and the final element `01` is the camera ID, ranging from `01` to `12` (there were three captures done per plot within 8-10 seconds, moving the rig about a meter along one axis between each capture). Our data preprocessing functions already handle the naming convention correctly. To see how the cameras are positioned in 3D and how the train/test views are distributed, open a reconstruction in the [viewer](#visualization), which shows each camera at its pose (training views in red, test views in green). To run the commands below, copy or link the plot folders (e.g. `01_reconstruction/original/20240717/plot_46x`) into `data/` in the repository, which the Docker command above mounts.
 
 The full data release ([ETH Research Collection](http://hdl.handle.net/20.500.11850/807753)) also includes a second acquisition date, 19 July 2024, which was not used in the paper: raw and corrected images with camera poses, 2D masks at 640 and 1280 px, and laser scans. We share it for the community, e.g. to test methods on another date with different (darker) illumination. Its README describes the layout, the coordinate systems and the corrected reconstructions. We additionally include high-quality structured-light scans and ground-truth wheat head counts, unused in the paper.
 
 ### Corrected dataset and known issues
-After publication we found three issues that affect the results: the cameras of the original dataset have an off-centre principal point, which 3DGS ignores (the pixel shift of Sec. 5.1); the 2D wheat-head detector was run at 640 px, where many heads are too small to be found; and the height filter of the 3D segmentation removes whole rows of short genotypes. We provide a corrected dataset (principal point at the image centre) and recommend `generate_masks.py --img_size 1280` and `--no_height_filter` for new work. The default commands below still reproduce the paper. See [REPRODUCIBILITY.md](REPRODUCIBILITY.md) for the details, the recommended commands and the effect of each fix.
+After publication we found three issues that affect the results: the cameras of the original dataset have an off-centre principal point, which 3DGS ignores (the pixel shift of Sec. 5.1); the 2D wheat-head detector was run at 640 px, where many heads are too small to be found; and the height filter of the 3D segmentation removes whole rows of short genotypes. We provide a corrected dataset (`01_reconstruction/corrected/<date>/`, principal point at the image centre, with masks at 640 and 1280 px) and recommend `--masks_dir yolosam_1280 --no_height_filter` for new work (and `generate_masks.py --img_size 1280` for new data). The default commands below still reproduce the paper. See [REPRODUCIBILITY.md](REPRODUCIBILITY.md) for the details, the recommended commands and the effect of each fix.
 
 ## 💻 Using Wheat3DGS
 
@@ -121,16 +117,21 @@ Note that `resolution` is set to 1 to prevent image downscaling, and the trainin
 
 You can also run `render.py` and `metrics.py` with the same input arguments to evaluate the quality of novel view synthesis on the reconstructed wheat fields (see Sec. 5.1). `render.py` reads the dataset path from the model's `cfg_args`; if the data has moved since training (e.g. trained in Docker, rendered outside), add `-s <dataset_path>`.
 
-**Step 2 (Optional).** The wheat head bounding boxes (YOLOv5) and 2D segmentations (SAM) are already provided in our dataset (`yolosam.zip`). To generate them yourself, e.g. for new data, download the wheat head detection weights (`weights/wheat_head_detection_model.pt` of our [data release](http://hdl.handle.net/20.500.11850/807753), from the [winning solution](https://github.com/ksnxr/GWC_solution) of the Global Wheat Head Detection Challenge 2021) and the [SAM ViT-H checkpoint](https://dl.fbaipublicfiles.com/segment_anything/sam_vit_h_4b8939.pth) into `weights/`, then run:
+<details>
+<summary><b>Step 2 (Optional).</b> Generate the 2D masks yourself, or use your own (click to expand)</summary>
+
+The wheat head bounding boxes (YOLOv5) and 2D segmentations (SAM) are already provided in our dataset (`yolosam.zip`). To generate them yourself, e.g. for new data, download the wheat head detection weights (`weights/wheat_head_detection_model.pt` of our [data release](http://hdl.handle.net/20.500.11850/807753), from the [winning solution](https://github.com/ksnxr/GWC_solution) of the Global Wheat Head Detection Challenge 2021) and the [SAM ViT-H checkpoint](https://dl.fbaipublicfiles.com/segment_anything/sam_vit_h_4b8939.pth) into `weights/`, then run:
 ```
 python scripts/generate_masks.py -s <dataset_path> [<dataset_path> ...]
 ```
 If you keep the weights elsewhere, pass `--yolo_weights` and `--sam_checkpoint`. This writes `bboxes/` and `masks/` into each plot folder (or into another folder with `--out`, e.g. to keep several mask sets side by side; select one with `--masks_dir`, see Step 3). `--vis` also saves `yolo_vis/` and `sam_vis/`. The defaults (`--conf 0.25`, `--img_size 640`) reproduce the provided masks; the corrected dataset has two mask sets, `yolosam_640/` and `yolosam_1280/`, made with `--img_size 640` and `1280`. YOLOv5 is included as a submodule (`submodules/yolov5`, tag `v7.0`, [AGPL-3.0](https://github.com/ultralytics/yolov5/blob/master/LICENSE)) and needs `seaborn` and `thop`, plus [`segment-anything`](https://github.com/facebookresearch/segment-anything) for SAM (all included in the Docker image). 
 
-#### Use your own 2D masks
-To use your own 2D masks instead (e.g. from another segmentation model), put them in a folder with this layout and pass it to the 3D segmentation with `--masks_dir` (see Step 3):
+**Use your own 2D masks.** To use your own 2D masks instead (e.g. from another segmentation model), put them in a folder with this layout and pass it to the 3D segmentation with `--masks_dir` (see Step 3):
 - `masks/<image_name>_000.png`, `_001.png`, ...: one binary mask per object (pixels > 0 = object), same size as the image.
 - `bboxes/<image_name>.pt`: a `torch` float tensor of shape N × 4 with one box `(x1, y1, x2, y2)` in image pixels per mask, row *i* belonging to mask `_<i>` (e.g. the outer box of each mask).
+
+</details>
+<br>
 
 **Step 3.** To run 3D segmentation on a wheat plot to identify and associate decoupled 2D wheat heads. To reproduce the paper's results (Table 2), use `run_3d_seg_paper.py`, the algorithm the paper's results were produced with:
 ```
@@ -145,12 +146,12 @@ python run_3d_seg.py -s <dataset_path> -m <model_path> --iou_threshold 0.6 --exp
 | `--iou_threshold` | `float` | The IoU threshold for associating rendered and YOLO-SAM-generated 2D segmentations. A higher threshold results in more conservative mask matching. Paper: 0.6 (default of `run_3d_seg_paper.py`). |
 | `--num_match` | `int` | `run_3d_seg_paper.py` only: number of views (including the starting view) a wheat head must be matched in. Paper: 5 (default). |
 | `--seed` | `int` | Random seed for the order in which the 2D masks are processed. The same seed gives the same result. |
-| `--exp_name` | `str` | The experiment name used to create the folder for saving all results under `<model_path>/wheat-head`.
+| `--exp_name` | `str` | The experiment name used to create the folder for saving all results under `<model_path>/wheat-head`. |
 | `--no_height_filter` | flag | Lift each seed mask to all Gaussians, not only those above the mean height of the scene (the default removes the ground and is meant for wheat heads; use this for other objects). |
 | `--save_counts` | flag | `run_3d_seg.py` only: also save each wheat head's per-Gaussian counts to `count/<id>.pt` (~17 MB each); not needed by any later step. |
 | `--masks_dir` | `str` | Folder containing `bboxes/` and `masks/`, as a subfolder of `<dataset_path>` (e.g. `yolosam_1280`) or an absolute path. Default: `<dataset_path>` itself, or `<dataset_path>/yolosam`. |
 
-**Note on duplicate wheat heads.** Each wheat head found is saved as `ply/wh_XXXX.ply`, and these files can contain duplicates of the same physical head, because masks already used for one head can be matched again by a later one. In our tests (grouping heads with a Jaccard overlap above 0.5 on their Gaussians), removing duplicates barely changes per-head trait errors against the laser scans, but head counts and ANOVA F values are inflated by them.
+**Note on duplicate wheat heads.** Each wheat head found is saved as `ply/wh_XXXX.ply`, and these files can contain duplicates of the same physical head, because masks already used for one head can be matched again by a later one. `run_3d_seg.py` also saves a head again as `wh_XXXX_a.ply`, `_b`, ... after merging it with a later one; Step 6 and the viewer use the last version. In our tests (grouping heads with a Jaccard overlap above 0.5 on their Gaussians), removing duplicates barely changes per-head trait errors against the laser scans, but head counts and ANOVA F values are inflated by them.
 
 **Step 4.** To generate a video rotating around the reconstructed wheat field for **qualitative** evaluation of the 3D segmentation results (as shown on our project page), run:
 ```
@@ -169,7 +170,7 @@ Results will be saved as a video `<model_path>/wheat-head/<exp_name>/wheat_field
 ```
 python eval_wheatgs.py -s <dataset_path> -m <model_path> --exp_name run1 --skip_train --load_counts
 ```
-Rendered 2D segmentation will be saved under `<model_path>/wheat-head/<exp_name>/eval/test/segmentation` and `overlay`, next to the 3D segmentation results. Then compute the metrics of Table 2 (IoU, precision, recall, F1, MSE, SSIM) against the manual labels (`<dataset_path>/manual_label/`), per plot and averaged over plots:
+`--load_counts` reuses the counts saved by Step 4 (`--render_type field`); without Step 4, omit it (slower, same result). Rendered 2D segmentation will be saved under `<model_path>/wheat-head/<exp_name>/eval/test/segmentation` and `overlay`, next to the 3D segmentation results. Then compute the metrics of Table 2 (IoU, precision, recall, F1, MSE, SSIM) against the manual labels (`<dataset_path>/manual_label/`), per plot and averaged over plots:
 ```
 python evaluate_2D.py -s <dataset_path_1> <dataset_path_2> ... -m <model_path_1> <model_path_2> ... --exp_name run1
 ```
@@ -239,10 +240,10 @@ Our viewer is based on [viser](https://github.com/nerfstudio-project/viser) and 
 cd wheat3dgsviewer
 bash run.sh <dataset_path> <model_path> <exp_name> [port]
 ```
-Then open `http://localhost:8080`. On a remote machine, forward the port (e.g. `ssh -L 8080:localhost:8080 <host>`, or the Ports panel of VS Code Remote); with Docker, add `-p 8080:8080` to `docker run`. Navigation: left-drag to orbit, right-drag to pan, scroll to zoom; `W`/`S` forward/back, `A`/`D` left/right, `Q`/`E` down/up, arrow keys to turn. Requires `viser==1.0.26 nerfview==0.1.3 splines jaxtyping` (included in the Docker image).
+Then open `http://localhost:8080`. On a remote machine, forward the port (e.g. `ssh -L 8080:localhost:8080 <host>`, or the Ports panel of VS Code Remote); with Docker, add `-p 8080:8080` to `docker run`. Navigation: left-drag to orbit, right-drag to pan, scroll to zoom; `W`/`S` forward/back, `A`/`D` left/right, `Q`/`E` down/up, arrow keys to turn. Its packages (viser, nerfview, splines, jaxtyping) are in `requirements.txt` and the Docker image.
 
 ## Acknowledgement
-Our implementation is based on the original [3D Gaussian Splatting](https://github.com/graphdeco-inria/gaussian-splatting) and [FlashSplat](https://github.com/florinshen/FlashSplat). We thank the authors for their revolutionary work and open-source contributions.
+Our implementation is based on the original [3D Gaussian Splatting](https://github.com/graphdeco-inria/gaussian-splatting) and [FlashSplat](https://github.com/florinshen/FlashSplat). We thank the authors for their great work and open-source contributions.
 
 ## License
 This project is licensed under the MIT License - see the [LICENSE](LICENSE.md) file for details. Please note that the 3D Gaussian Splatting code base, however, is licensed under a different license, which can be found in the [LICENSE_3DGS](LICENSE_3DGS.md) file.
