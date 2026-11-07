@@ -5,20 +5,22 @@
 
 <div align="center"> 
 
-[Project Page](https://joaquin-gajardo.github.io/wheat3dgs/) | [Paper](https://openaccess.thecvf.com/content/CVPR2025W/V4A/html/Zhang_Wheat3DGS_In-field_3D_Reconstruction_Instance_Segmentation_and_Phenotyping_of_Wheat_CVPRW_2025_paper.html) |  [Arxiv](https://arxiv.org/abs/2504.06978) | [Data](https://drive.google.com/drive/folders/1DJPs_E8-93dCysYkQ0-uxHrAcZGTZiVh)
+[Project Page](https://joaquin-gajardo.github.io/wheat3dgs/) | [Paper](https://openaccess.thecvf.com/content/CVPR2025W/V4A/html/Zhang_Wheat3DGS_In-field_3D_Reconstruction_Instance_Segmentation_and_Phenotyping_of_Wheat_CVPRW_2025_paper.html) |  [Arxiv](https://arxiv.org/abs/2504.06978) | [Data](http://hdl.handle.net/20.500.11850/807753)
 
   <img src="assets/teaser.png" width="400">
 </div>
 
 ## Updates
-- <b>[5/16/2025]</b> 3D gaussian segmentation viewer
-- <b>[5/2/2025]</b>  Thx [Tomi](https://github.com/tomedic) for releasing code for wheat head morphology calculation at `wheatheadsmorphology`!
-- <b>[4/30/2025]</b> Initial code release 
+- <b>[07/11/2026]</b> Full code release and data reöease on the [ETH Research Collection](http://hdl.handle.net/20.500.11850/807753) (incl. laser scans and a second date), corrected dataset and [`REPRODUCIBILITY.md`](REPRODUCIBILITY.md), Docker image, script for the 2D masks, phenotyping against laser scans (Step 6)
+- <b>[16/05/2025]</b> 3D gaussian segmentation viewer
+- <b>[02/05/2025]</b>  Thx [Tomi](https://github.com/tomedic) for releasing code for wheat head morphology calculation at `wheatheadsmorphology`!
+- <b>[30/04/2025]</b> Initial code release 
 
-## 📝 TODO List
+## <s>📝 TODO List
 - [x] Share Docker setup
 - [x] Script to get initial masks
-- [ ] Data to ETH research collection including laser scans
+- [x] Data to ETH research collection including laser scans
+  </s>
 
 ## 🛠️ Setup
 The setup should be very similar to the original [3D Gaussian Splatting](https://github.com/graphdeco-inria/gaussian-splatting) except we used a modified version of [differential gaussian rasterization](https://github.com/ashawkey/diff-gaussian-rasterization/tree/8829d14f814fccdaf840b7b0f3021a616583c0a1) with support of depth & alpha rendering, and an additional [flashsplat-rasterization](https://github.com/florinshen/flashsplat-rasterization/tree/189c483ffa33dd6d5661343ce496df0c6eb80a0c) submodule. We tested it with Python 3.10, PyTorch 1.13.1 and CUDA 11.6 (`requirements.txt`); the Docker image is the easiest way to get this setup.
@@ -54,27 +56,26 @@ pip install --no-build-isolation submodules/simple-knn submodules/diff-gaussian-
 The data used for Wheat3DGS is on the [ETH Research Collection](http://hdl.handle.net/20.500.11850/807753) (`01_reconstruction/original/20240717/`; first released on [Google Drive](https://drive.google.com/drive/folders/1DJPs_E8-93dCysYkQ0-uxHrAcZGTZiVh)). The data and the baseline results for each plot (from 461 to 467) are structured as follows:
 ```bash
 plot_46x/
-├── images/ # 36 images captured by FIP
-│   ├──FPWW036_SR0461_FIP2_cam_01.png 
-│   └──FPWW036_SR0461...
-├── sparse/ # camera intrinsics/extrinsics in COLMAP format
-├── yolosam.zip # 2D masks formatted for Wheat3DGS, unzip in plot_46x/ to get the folders below
-│   ├──bboxes/ # YOLO bounding boxes per image (xyxy)
-│   │  ├──FPWW036_SR0461_1_FIP2_cam_01.pt
-│   │  └──...
-│   └──masks/ # 2D segmention mask corresponds to each box (per instance per image) 
-│   │  ├──FPWW036_SR0461_1_FIP2_cam_01_000.png
-│   │  ├──FPWW036_SR0461_1_FIP2_cam_01_001.png
-│   │  └──...
-│   ├──yolo_vis/ # for visualization purpose only
-│   └──sam_vis/ # for vis only
-├── semantics/ # combined 2D masks per image for FruitNeRF baseline
-├── manual_label/ # contains a randomly selected test view image with human-annotated wheat heads
-└── transforms.json # data in NeRF format
+├── images/            # 36 images captured by FIP, e.g. FPWW036_SR0461_FIP2_cam_01.png
+├── sparse/            # camera intrinsics/extrinsics in COLMAP format
+├── yolosam.zip        # 2D masks for Wheat3DGS, unzip in plot_46x/ (see below)
+├── semantics/         # combined 2D masks per image for the FruitNeRF baseline
+├── manual_label/      # a randomly selected test view with human-annotated wheat heads
+├── cam_centroid.npy   # offset of the local coordinates to Swiss coordinates (LV95), used in Step 6
+├── sparse_pc.ply      # sparse COLMAP points, optional starting point of the splatfacto baseline (--sparse_pc)
+└── transforms.json    # data in NeRF format
 ```
-Please unzip `yolosam.zip` for each plot before running the 3D segmentation, inside the plot folder (`cd plot_46x && unzip yolosam.zip`), so that `bboxes/` and `masks/` end up directly in `plot_46x/` (a `plot_46x/yolosam/` subfolder, as created by some GUI unzip tools, also works). The image names are structured as follows. For example, in `FPWW036_SR0461_FIP2_cam_01.png`: `FPWW036_SR0461` is shared by all images from the same plot; `FIP2` indicates the batch ID, which may appear as `1_FIP2`, `6_FIP`, or `FIP2`; and the final element `01` is the camera ID, ranging from `01` to `12`. Our data preprocessing functions already handle the naming convention correctly. To see how the cameras are positioned in 3D and how the train/test views are distributed, open a reconstruction in the [viewer](#visualization), which shows each camera at its pose (training views in red, test views in green).
+After unzipping `yolosam.zip`:
+```bash
+plot_46x/
+├── bboxes/            # YOLO boxes per image (x1, y1, x2, y2), e.g. FPWW036_SR0461_1_FIP2_cam_01.pt
+├── masks/             # one SAM mask per box, e.g. FPWW036_SR0461_1_FIP2_cam_01_000.png, _001.png, ...
+├── yolo_vis/          # for visualization only
+└── sam_vis/           # for visualization only
+```
+Please unzip `yolosam.zip` for each plot before running the 3D segmentation, inside the plot folder (`cd plot_46x && unzip yolosam.zip`), so that `bboxes/` and `masks/` end up directly in `plot_46x/` (a `plot_46x/yolosam/` subfolder, as created by some GUI unzip tools, also works). The corrected dataset has its masks already unzipped, in `yolosam_640/` and `yolosam_1280/`, chosen with `--masks_dir` (see Step 3). The image names are structured as follows. For example, in `FPWW036_SR0461_FIP2_cam_01.png`: `FPWW036_SR0461` is shared by all images from the same plot; `FIP2` indicates the capture ID, which may appear as `1_FIP2`, `6_FIP`, or `FIP2`; and the final element `01` is the camera ID, ranging from `01` to `12` (there were three captures done per plot within 8-10 seconds, moving the rig about a meter along one axis between each capture). Our data preprocessing functions already handle the naming convention correctly. To see how the cameras are positioned in 3D and how the train/test views are distributed, open a reconstruction in the [viewer](#visualization), which shows each camera at its pose (training views in red, test views in green).
 
-The full data release ([ETH Research Collection](http://hdl.handle.net/20.500.11850/807753)) also includes a second acquisition date, 19 July 2024, which was not used in the paper: raw and corrected images with camera poses, 2D masks at 640 and 1280 px, and laser scans. We share it for the community, e.g. to test methods on another date with different (darker) illumination. Its README describes the layout, the coordinate systems and the corrected reconstructions.
+The full data release ([ETH Research Collection](http://hdl.handle.net/20.500.11850/807753)) also includes a second acquisition date, 19 July 2024, which was not used in the paper: raw and corrected images with camera poses, 2D masks at 640 and 1280 px, and laser scans. We share it for the community, e.g. to test methods on another date with different (darker) illumination. Its README describes the layout, the coordinate systems and the corrected reconstructions. We additionally include high-quality structured-light scans and ground-truth wheat head counts, unused in the paper.
 
 ### Corrected dataset and known issues
 After publication we found three issues that affect the results: the cameras of the original dataset have an off-centre principal point, which 3DGS ignores (the pixel shift of Sec. 5.1); the 2D wheat-head detector was run at 640 px, where many heads are too small to be found; and the height filter of the 3D segmentation removes whole rows of short genotypes. We provide a corrected dataset (principal point at the image centre) and recommend `generate_masks.py --img_size 1280` and `--no_height_filter` for new work. The default commands below still reproduce the paper. See [REPRODUCIBILITY.md](REPRODUCIBILITY.md) for the details, the recommended commands and the effect of each fix.
