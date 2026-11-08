@@ -19,7 +19,7 @@
 ## 🛠️ Setup
 The setup should be very similar to the original [3D Gaussian Splatting](https://github.com/graphdeco-inria/gaussian-splatting) except we used a modified version of [differential gaussian rasterization](https://github.com/ashawkey/diff-gaussian-rasterization/tree/8829d14f814fccdaf840b7b0f3021a616583c0a1) with support of depth & alpha rendering, and an additional [flashsplat-rasterization](https://github.com/florinshen/flashsplat-rasterization/tree/189c483ffa33dd6d5661343ce496df0c6eb80a0c) submodule. We tested it with Python 3.10, PyTorch 1.13.1 and CUDA 11.6 (`requirements.txt`); the Docker image is the easiest way to get this setup.
 
-**Hardware.** An NVIDIA GPU with 24 GB of memory: training at full resolution (4096 × 3000) needs about 18 GB and `metrics.py` up to about 22 GB; the 3D segmentation needs about 9 GB. We tested on Linux (with Docker, Apptainer, and the install without Docker on a clean Ubuntu 22.04) with RTX A5000, RTX 3090 and RTX 4090 GPUs. One plot takes about 7.5 h on an RTX A5000 with `run_wheat_3dgs.sh` (training 1.5 h, 3D segmentation 5.5 h) and about 12 GB of disk.
+**Hardware.** An NVIDIA GPU with 24 GB of memory: training at full resolution (4096 × 3000) needs about 18 GB and `metrics.py` up to about 22 GB; the 3D segmentation needs about 9 GB. We tested on Linux (with Docker, Apptainer, and the install without Docker on a clean Ubuntu 22.04) with RTX A5000, RTX 3090 and RTX 4090 GPUs. One plot takes about 7.5 h on an RTX A5000 with `run_wheat_3dgs.sh` (training 1.5 h, 3D segmentation 5.5 h) and about 12 GB of disk. With the 1280 px masks of the corrected dataset (about 2.5 times as many masks), the 3D segmentation takes about 20 h per plot.
 
 ### Docker
 ```bash
@@ -47,6 +47,7 @@ pip install torch==1.13.1+cu116 torchvision==0.14.1+cu116 --extra-index-url http
 pip install -r requirements.txt
 pip install --no-build-isolation submodules/simple-knn submodules/diff-gaussian-rasterization submodules/flashsplat-rasterization
 ```
+**ARM64 (e.g. NVIDIA DGX Spark / Grace):** the Docker image is x86_64 only. The install without Docker builds with a recent PyTorch for your CUDA version, with three changes: `pip install pybind11` and add its include directory to `CPATH` when building the submodules; add `#include <cstdint>` to `submodules/flashsplat-rasterization/cuda_rasterizer/rasterizer_impl.h`; and set `TORCH_CUDA_ARCH_LIST` to your GPU (e.g. `12.1` for the GB10). This setup is not the one the paper's results were produced with and has not been tested end to end; expect small differences.
 
 ## 🌾 Dataset
 The data used for Wheat3DGS is on the [ETH Research Collection](http://hdl.handle.net/20.500.11850/807753) (`01_reconstruction/original/20240717/`; first released on [Google Drive](https://drive.google.com/drive/folders/1DJPs_E8-93dCysYkQ0-uxHrAcZGTZiVh)). The data of each plot (461 to 467) is structured as follows:
