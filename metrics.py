@@ -17,6 +17,7 @@ import torchvision.transforms.functional as tf
 from utils.loss_utils import ssim
 from lpipsPyTorch import lpips
 import json
+import traceback
 from tqdm import tqdm
 from utils.image_utils import psnr
 from argparse import ArgumentParser
@@ -89,7 +90,8 @@ def evaluate(model_paths):
                 json.dump(full_dict[scene_dir], fp, indent=True)
             with open(scene_dir + "/per_view.json", 'w') as fp:
                 json.dump(per_view_dict[scene_dir], fp, indent=True)
-        except:
+        except Exception:
+            traceback.print_exc()
             print("Unable to compute metrics for model", scene_dir)
 
 if __name__ == "__main__":

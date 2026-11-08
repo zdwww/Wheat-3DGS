@@ -1,81 +1,30 @@
 #!/bin/bash
-#SBATCH -J 3d_seg
-#SBATCH --mail-type=END
-#SBATCH --time=48:00:00
-#SBATCH --gres=gpumem:24g
-#SBATCH --gpus=1
-#SBATCH --mem-per-cpu=8G
-#SBATCH --cpus-per-task=4
-#SBATCH --output=sbatch_log/run_461.out
-#SBATCH --error=sbatch_log/run_461.err
+# Wheat3DGS pipeline on one plot, with the paper's settings (README Steps 1, 3, 4 and 5):
+# 3DGS reconstruction + novel view synthesis metrics, 3D segmentation, video of the field, Table 2 metrics.
+# Usage: bash run_wheat_3dgs.sh <dataset_path> <model_path> [exp_name]
+set -e
+SRC_PATH=$1
+MDL_PATH=$2
+EXP_NAME=${3:-run1}
+if [ -z "$SRC_PATH" ] || [ -z "$MDL_PATH" ]; then
+    echo "Usage: bash run_wheat_3dgs.sh <dataset_path> <model_path> [exp_name]"
+    exit 1
+fi
 
-module load stack/2024-04
-module load gcc/8.5.0 cuda/11.8.0 ninja/1.11.1 ffmpeg/4.4.1 eth_proxy
-echo $(module list)
+# Step 1: 3DGS reconstruction, then render the test views and compute PSNR/SSIM/LPIPS
+python -u train_vanilla_3dgs.py -s $SRC_PATH -m $MDL_PATH --resolution 1 --eval
+python -u render.py -m $MDL_PATH --skip_train
+python -u metrics.py -m $MDL_PATH
 
-source ~/.bashrc
-conda activate base
-conda activate gs_w_depth
+# Step 3: 3D segmentation of the wheat heads (the paper's algorithm and settings)
+python -u run_3d_seg_paper.py -s $SRC_PATH -m $MDL_PATH --exp_name $EXP_NAME --seed 0
 
-nvidia-smi
+# Step 4: video around the segmented field (also saves all_counts.pth, used by Step 5)
+python -u render_360.py -s $SRC_PATH -m $MDL_PATH --render_type field --exp_name $EXP_NAME \
+    --n_frames 200 --framerate 20 --elevation 45
+# One video per wheat head (takes long):
+# python -u render_360.py -s $SRC_PATH -m $MDL_PATH --render_type head --exp_name $EXP_NAME --n_frames 100 --framerate 10 --elevation 30
 
-HOME_DIR=/cluster/scratch/daizhang
-DATE=20240717
-PLOT=plot_461
-SRC_PATH=${HOME_DIR}/Wheat-GS-data/${DATE}/${PLOT}
-MDL_PATH=${HOME_DIR}/Wheat-GS-output/${DATE}/${PLOT}
-
-EXP_NAME=run1
-
-# OG 3DGS reconstruction as initialization
-python -u train.py \
-    -s $SRC_PATH \
-    -m $MDL_PATH \
-    --resolution 1 \
-    --eval
-
-python -u render.py \
-    -s $SRC_PATH \
-    -m $MDL_PATH \
-    --resolution 1 \
-    --eval \
-    --iteration 7000
-
-python -u metrics.py \
-    -m $MDL_PATH \
-
-# Run 3D segmentation on reconstruction
-python -u run_3d_seg.py \
-    -s $SRC_PATH \
-    -m $MDL_PATH \
-    --resolution 1 \
-    --eval \
-    --iou_threshold 0.6 \
-    --exp_name ${EXP_NAME}
-
-# Evaluating 3D segmentation qualitively on both entire wheat field and individual wheat heads
-python -u render_360.py \
-    -s $SRC_PATH \
-    -m $MDL_PATH \
-    --render_type field \
-    --exp_name ${EXP_NAME} \
-    --n_frames 200 \
-    --framerate 20 \
-    --elevation 45
-
-python -u render_360.py \
-    -s $SRC_PATH \
-    -m $MDL_PATH \
-    --render_type head \
-    --exp_name ${EXP_NAME} \
-    --n_frames 100 \
-    --framerate 10 \
-    --elevation 30
-
-# Evaluating by generating 2D segmentation masks on novel views for quantitative evaluation
-python -u eval_wheatgs.py \
-    -s $SRC_PATH \
-    -m $MDL_PATH \
-    --exp_name ${EXP_NAME} \
-    --skip_train \
-    --load_counts
+# Step 5: render the 3D segmentation into the test views and compute the Table 2 metrics against the manual labels
+python -u eval_wheatgs.py -s $SRC_PATH -m $MDL_PATH --exp_name $EXP_NAME --skip_train --load_counts
+python -u evaluate_2D.py -s $SRC_PATH -m $MDL_PATH --exp_name $EXP_NAME

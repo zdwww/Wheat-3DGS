@@ -39,9 +39,11 @@ class ParamGroup:
 
     def extract(self, args):
         group = GroupParams()
-        for arg in vars(args).items():
-            if arg[0] in vars(self) or ("_" + arg[0]) in vars(self):
-                setattr(group, arg[0], arg[1])
+        for key, default in vars(self).items(): # the attributes set in __init__ are the defaults
+            key = key[1:] if key.startswith("_") else key
+            value = getattr(args, key, None)
+            # Default when missing, e.g. a setting added after the model's cfg_args was written (with sentinel=True)
+            setattr(group, key, default if value is None else value)
         return group
 
 class ModelParams(ParamGroup): 
@@ -54,6 +56,7 @@ class ModelParams(ParamGroup):
         self._white_background = False
         self.data_device = "cuda"
         self.eval = True
+        self.masks_dir = "" # folder with bboxes/ and masks/: a subfolder of the plot or an absolute path (default: the plot folder or <plot>/yolosam)
         super().__init__(parser, "Loading Parameters", sentinel)
 
     def extract(self, args):

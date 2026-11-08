@@ -1,0 +1,46 @@
+# Python dependencies of Wheat3DGS, pinned to the versions tested in the Docker image
+# (base image pytorch/pytorch:1.13.1-cuda11.6-cudnn8-devel: Python 3.10.8, torch 1.13.1, torchvision 0.14.1).
+#
+# Without Docker (Ubuntu: sudo apt install ffmpeg libgl1 libglib2.0-0 libgomp1; Python 3.10; CUDA 11.x toolkit with nvcc), then:
+#   pip install torch==1.13.1+cu116 torchvision==0.14.1+cu116 --extra-index-url https://download.pytorch.org/whl/cu116
+#   pip install -r requirements.txt
+#   pip install --no-build-isolation submodules/simple-knn submodules/diff-gaussian-rasterization submodules/flashsplat-rasterization
+
+# Core (torch 1.13 needs numpy < 2; pillow, pyyaml and tqdm are the base image's versions)
+numpy==1.26.4
+scipy==1.15.3
+matplotlib==3.10.9
+pillow==9.3.0
+scikit-learn==1.7.2
+shapely==2.1.2
+pandas==2.3.3
+pyyaml==6.0
+plyfile==1.1.3
+tqdm==4.64.1
+rich==14.3.4
+gdown==6.4.2
+wandb==0.19.11
+ffmpeg-python==0.2.0
+gitpython==3.2.1
+joblib==1.6.0
+opencv-python-headless==4.11.0.86
+open3d==0.18.0
+imageio==2.38.0
+jupyterlab==4.6.4
+ninja==1.13.2
+setuptools==65.5.0  # torch 1.13 builds the submodules with pkg_resources, removed in newer setuptools
+
+# 2D mask generation (scripts/generate_masks.py): YOLOv5 v7.0 (submodule) + SAM
+seaborn==0.13.2
+thop==0.1.1.post2209072238
+segment-anything @ git+https://github.com/facebookresearch/segment-anything.git@dca509fe793f601edb92606367a655c15ac00fdf
+
+# Phenotyping against TLS (scripts/phenotyping)
+hdbscan==0.8.38.post1
+openpyxl==3.1.5
+
+# Interactive viewer (wheat3dgsviewer/); nerfview also needs splines and jaxtyping, not declared as its dependencies
+viser==1.0.26
+nerfview==0.1.3
+splines==0.3.3
+jaxtyping==0.3.7

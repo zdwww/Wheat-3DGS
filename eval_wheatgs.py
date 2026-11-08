@@ -19,6 +19,7 @@ from os import makedirs
 from gaussian_renderer import render
 import torchvision
 from utils.general_utils import safe_state
+from utils.system_utils import seg_load_iteration
 from argparse import ArgumentParser
 from arguments import ModelParams, PipelineParams, get_combined_args
 from gaussian_renderer import GaussianModel
@@ -63,9 +64,9 @@ def opt_w_masks(viewpoint_cam, gaussians, pipe, background, obj_masks, obj_num=N
     used_count = render_pkg["used_count"].detach().cpu()
     return used_count, obj_num
 
-def render_set(model_path, name, views, gaussians, pipeline, background, all_obj_labels):
-    render_path = os.path.join(model_path, name, "overlay")
-    seg_path = os.path.join(model_path, name, "segmentation")
+def render_set(model_path, name, exp_name, views, gaussians, pipeline, background, all_obj_labels):
+    render_path = os.path.join(model_path, "wheat-head", exp_name, "eval", name, "overlay")
+    seg_path = os.path.join(model_path, "wheat-head", exp_name, "eval", name, "segmentation")
 
     makedirs(render_path, exist_ok=True)
     makedirs(seg_path, exist_ok=True)
@@ -82,10 +83,11 @@ def render_set(model_path, name, views, gaussians, pipeline, background, all_obj
         image = Image.fromarray(binary_array.numpy(), mode="L")
         image.save(os.path.join(seg_path, f"{view.image_name}.png"))
 
-def render_sets(dataset : ModelParams, pipeline : PipelineParams, exp_name, skip_train, load_counts):
+def render_sets(dataset : ModelParams, pipeline : PipelineParams, exp_name, skip_train, load_counts, iteration=-1):
     with torch.no_grad():
         gaussians = GaussianModel(dataset.sh_degree)
-        scene = Scene(dataset, gaussians, load_iteration=-1, shuffle=False) # Load max iteration
+        load_iteration = seg_load_iteration(dataset.model_path, exp_name, iteration) # the iteration the 3D segmentation used
+        scene = Scene(dataset, gaussians, load_iteration=load_iteration, shuffle=False)
         ply_path = os.path.join(dataset.model_path, "wheat-head", exp_name, "gaussians.ply")
         # gaussians.load_ply(ply_path)
         print(f"Gaussians successfully loaded from {ply_path}")
@@ -115,8 +117,10 @@ def render_sets(dataset : ModelParams, pipeline : PipelineParams, exp_name, skip
                 gc.collect()
                 torch.cuda.empty_cache()
         else:
-            counts_pth = os.path.join(dataset.model_path, "wheat-head", exp_name, "all_counts.pt")
-            assert os.path.exists(counts_pth)
+            # saved by render_360.py --render_type field (same computation as above)
+            counts_pth = os.path.join(dataset.model_path, "wheat-head", exp_name, "all_counts.pth")
+            if not os.path.exists(counts_pth):
+                raise FileNotFoundError(f"{counts_pth} not found: run render_360.py --render_type field first, or omit --load_counts")
             all_counts = torch.load(counts_pth).cuda()
             print(f"Load all counts shape {all_counts.shape}")
 
@@ -124,17 +128,18 @@ def render_sets(dataset : ModelParams, pipeline : PipelineParams, exp_name, skip
         all_obj_labels = multi_instance_opt(all_counts, slackness)
         ########### End of FlashSplat Optimization ########### 
         if not skip_train:
-            render_set(dataset.model_path, "train", scene.getTrainCameras(), gaussians, pipeline, background, all_obj_labels)
-        render_set(dataset.model_path, "test", scene.getTestCameras(), gaussians, pipeline, background, all_obj_labels)
+            render_set(dataset.model_path, "train", exp_name, scene.getTrainCameras(), gaussians, pipeline, background, all_obj_labels)
+        render_set(dataset.model_path, "test", exp_name, scene.getTestCameras(), gaussians, pipeline, background, all_obj_labels)
 
 if __name__ == "__main__":
     # Set up command line argument parser
     parser = ArgumentParser(description="Testing script parameters")
-    model = ModelParams(parser)
+    model = ModelParams(parser, sentinel=True)
     pipeline = PipelineParams(parser)
     parser.add_argument("--exp_name", type=str, help="Exp name")
     parser.add_argument("--skip_train", action="store_true")
     parser.add_argument("--load_counts", action="store_true")
+    parser.add_argument("--iteration", default=-1, type=int, help="iteration of OG 3DGS to load, default: the one the 3D segmentation used")
     args = get_combined_args(parser)
     print(f"Rendering {args.model_path}/{args.exp_name}")
-    render_sets(model.extract(args), pipeline.extract(args), args.exp_name, args.skip_train, args.load_counts)
+    render_sets(model.extract(args), pipeline.extract(args), args.exp_name, args.skip_train, args.load_counts, args.iteration)

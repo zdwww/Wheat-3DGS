@@ -17,6 +17,7 @@ from gaussian_renderer import GaussianModel, flashsplat_render, render
 from scene import Scene
 from scene.cameras import MiniCam
 from utils.general_utils import safe_state
+from utils.system_utils import seg_load_iteration
 from utils.graphics_utils import getProjectionMatrix, getWorld2View2
 from utils.wheatgs_helper import multi_instance_opt, render_360
 
@@ -69,7 +70,10 @@ def opt_w_masks(viewpoint_cam, gaussians, pipe, background, obj_masks, obj_num=N
     return used_count, obj_num
 
 def render_wheat_head(dataset : ModelParams, pipeline : PipelineParams, exp_name, 
-                      n_frames=200, framerate=20, elevation=15, save_frames=False):
+                      n_frames=200, framerate=20, elevation=15, save_frames=False, load_iteration=-1):
+    # The heads are loaded from the ply files of the 3D segmentation, which already come from the iteration it used,
+    # so the iteration is only checked here
+    seg_load_iteration(dataset.model_path, exp_name, int(load_iteration))
     with torch.no_grad():
         gaussians = GaussianModel(dataset.sh_degree)
         scene = Scene(dataset, gaussians, load_iteration=None, shuffle=False)
@@ -142,10 +146,7 @@ def render_wheat_field(dataset : ModelParams, pipeline : PipelineParams, exp_nam
     out_dir = os.path.join(dataset.model_path, "wheat-head", exp_name, "3DSeg")
     os.makedirs(out_dir, exist_ok=True)
     gaussians = GaussianModel(dataset.sh_degree)
-    try:
-        load_iteration = int(load_iteration)
-    except:
-        pass
+    load_iteration = seg_load_iteration(dataset.model_path, exp_name, int(load_iteration)) # the iteration the 3D segmentation used
     print(f"Load iteration {load_iteration}, Resolution {dataset.resolution}")
     scene = Scene(dataset, gaussians, load_iteration=load_iteration, shuffle=False)
     # gaussians.training_setup(opt)
@@ -190,10 +191,10 @@ def render_wheat_field(dataset : ModelParams, pipeline : PipelineParams, exp_nam
 if __name__ == "__main__":
     # Set up command line argument parser
     parser = ArgumentParser(description="Testing script parameters")
-    model = ModelParams(parser)
+    model = ModelParams(parser, sentinel=True)
     pipeline = PipelineParams(parser)
     opt = OptimizationParams(parser)
-    parser.add_argument("--iteration", default=-1, type=int, help="iteration of OG 3DGS to load")
+    parser.add_argument("--iteration", default=-1, type=int, help="iteration of OG 3DGS to load, default: the one the 3D segmentation used (head: only checked, the heads come from the segmentation)")
     parser.add_argument("--render_type", type=str, default=None, help="render type: field (whole wheat field) or head (all individual wheat heads)")
     parser.add_argument("--exp_name", type=str, default=None, help="experiment name of 3D segmentation to load")
     parser.add_argument("--n_frames", type=int, default=100, help="number of frames to render")
@@ -204,9 +205,9 @@ if __name__ == "__main__":
     print(f"Rendering {args.model_path} for 3D segmentation experiment {args.exp_name}, Option: {args.render_type}")
     if args.render_type == "field":
         print("Render the 3D segmentation on the whole wheat field")
-        render_wheat_field(model.extract(args), pipeline.extract(args), args.exp_name, args.n_frames, args.framerate, args.elevation, args.save_frames)
+        render_wheat_field(model.extract(args), pipeline.extract(args), args.exp_name, args.n_frames, args.framerate, args.elevation, args.save_frames, args.iteration)
     elif args.render_type == "head":
         print("Render each individual segmented wheat head")
-        render_wheat_head(model.extract(args), pipeline.extract(args), args.exp_name, args.n_frames, args.framerate, args.elevation, args.save_frames)
+        render_wheat_head(model.extract(args), pipeline.extract(args), args.exp_name, args.n_frames, args.framerate, args.elevation, args.save_frames, args.iteration)
     else:
         raise ValueError(f"Invalid render type: either field or head")
