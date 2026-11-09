@@ -5,13 +5,13 @@
 
 <div align="center"> 
 
-[Project Page](https://joaquin-gajardo.github.io/wheat3dgs/) | [Paper](https://openaccess.thecvf.com/content/CVPR2025W/V4A/html/Zhang_Wheat3DGS_In-field_3D_Reconstruction_Instance_Segmentation_and_Phenotyping_of_Wheat_CVPRW_2025_paper.html) |  [Arxiv](https://arxiv.org/abs/2504.06978) | [Video](https://www.youtube.com/watch?v=NULPz1hoB_o) | [Data](http://hdl.handle.net/20.500.11850/807753)
+[Project Page](https://joaquin-gajardo.github.io/wheat3dgs/) | [Paper](https://openaccess.thecvf.com/content/CVPR2025W/V4A/html/Zhang_Wheat3DGS_In-field_3D_Reconstruction_Instance_Segmentation_and_Phenotyping_of_Wheat_CVPRW_2025_paper.html) |  [Arxiv](https://arxiv.org/abs/2504.06978) | [Video](https://www.youtube.com/watch?v=NULPz1hoB_o) | [Data](https://doi.org/10.3929/ethz-c-000807753)
 
   <img src="assets/teaser.png" width="400">
 </div>
 
 ## Updates
-- <b>[07/11/2026]</b> Full code release and data release on the [ETH Research Collection](http://hdl.handle.net/20.500.11850/807753) (incl. laser scans and a second date), corrected dataset and [`REPRODUCIBILITY.md`](REPRODUCIBILITY.md), Docker image, script for the 2D masks, phenotyping against laser scans (Step 6)
+- <b>[07/11/2026]</b> Full code release and data release on the [ETH Research Collection](https://doi.org/10.3929/ethz-c-000807753) (incl. laser scans and a second date), corrected dataset and [`REPRODUCIBILITY.md`](REPRODUCIBILITY.md), Docker image, script for the 2D masks, phenotyping against laser scans (Step 6)
 - <b>[16/05/2025]</b> 3D gaussian segmentation viewer
 - <b>[02/05/2025]</b>  Thx [Tomi](https://github.com/tomedic) for releasing code for wheat head morphology calculation at `wheatheadsmorphology`!
 - <b>[30/04/2025]</b> Initial code release 
@@ -50,7 +50,7 @@ pip install --no-build-isolation submodules/simple-knn submodules/diff-gaussian-
 **ARM64 (e.g. NVIDIA DGX Spark / Grace):** the Docker image is x86_64 only. The install without Docker builds with a recent PyTorch for your CUDA version, with three changes: `pip install pybind11` and add its include directory to `CPATH` when building the submodules; add `#include <cstdint>` to `submodules/flashsplat-rasterization/cuda_rasterizer/rasterizer_impl.h`; and set `TORCH_CUDA_ARCH_LIST` to your GPU (e.g. `12.1` for the GB10). This setup is not the one the paper's results were produced with and has not been tested end to end; expect small differences.
 
 ## 🌾 Dataset
-The data used for Wheat3DGS is on the [ETH Research Collection](http://hdl.handle.net/20.500.11850/807753) (`01_reconstruction/original/20240717/`; first released on [Google Drive](https://drive.google.com/drive/folders/1DJPs_E8-93dCysYkQ0-uxHrAcZGTZiVh)). The data of each plot (461 to 467) is structured as follows:
+The data used for Wheat3DGS is on the [ETH Research Collection](https://doi.org/10.3929/ethz-c-000807753) (DOI: [10.3929/ethz-c-000807753](https://doi.org/10.3929/ethz-c-000807753); `01_reconstruction/original/20240717/`; first released on [Google Drive](https://drive.google.com/drive/folders/1DJPs_E8-93dCysYkQ0-uxHrAcZGTZiVh)). The data of each plot (461 to 467) is structured as follows:
 ```bash
 plot_46x/
 ├── images/            # 36 images captured by FIP, e.g. FPWW036_SR0461_FIP2_cam_01.png
@@ -72,7 +72,7 @@ plot_46x/
 ```
 Please unzip `yolosam.zip` for each plot before running the 3D segmentation, inside the plot folder (`cd plot_46x && unzip yolosam.zip`), so that `bboxes/` and `masks/` end up directly in `plot_46x/` (a `plot_46x/yolosam/` subfolder, as created by some GUI unzip tools, also works). The corrected dataset has its masks already unzipped, in `yolosam_640/` and `yolosam_1280/`, chosen with `--masks_dir` (see Step 3). The image names are structured as follows. For example, in `FPWW036_SR0461_FIP2_cam_01.png`: `FPWW036_SR0461` is shared by all images from the same plot; `FIP2` indicates the capture ID, which may appear as `1_FIP2`, `6_FIP`, or `FIP2`; and the final element `01` is the camera ID, ranging from `01` to `12` (there were three captures done per plot within 8-10 seconds, moving the rig about a meter along one axis between each capture). Our data preprocessing functions already handle the naming convention correctly. To see how the cameras are positioned in 3D and how the train/test views are distributed, open a reconstruction in the [viewer](#visualization), which shows each camera at its pose (training views in red, test views in green). To run the commands below, copy or link the plot folders (e.g. `01_reconstruction/original/20240717/plot_46x`) into `data/` in the repository, which the Docker command above mounts.
 
-The full data release ([ETH Research Collection](http://hdl.handle.net/20.500.11850/807753)) also includes a second acquisition date, 19 July 2024, which was not used in the paper: raw and corrected images with camera poses, 2D masks at 640 and 1280 px, and laser scans. We share it for the community, e.g. to test methods on another date with different (darker) illumination. Its README describes the layout, the coordinate systems and the corrected reconstructions. We additionally include high-quality structured-light scans and ground-truth wheat head counts, unused in the paper.
+The full data release ([ETH Research Collection](https://doi.org/10.3929/ethz-c-000807753)) also includes a second acquisition date, 19 July 2024, which was not used in the paper: raw and corrected images with camera poses, 2D masks at 640 and 1280 px, and laser scans. We share it for the community, e.g. to test methods on another date with different (darker) illumination. Its README describes the layout, the coordinate systems and the corrected reconstructions. We additionally include high-quality structured-light scans and ground-truth wheat head counts, unused in the paper.
 
 ### Corrected dataset and known issues
 After publication we found three issues that affect the results: the cameras of the original dataset have an off-centre principal point, which 3DGS ignores (the pixel shift of Sec. 5.1); the 2D wheat-head detector was run at 640 px, where many heads are too small to be found; and the height filter of the 3D segmentation removes whole rows of short genotypes. We provide a corrected dataset (`01_reconstruction/corrected/<date>/`, principal point at the image centre, with masks at 640 and 1280 px) and recommend `--masks_dir yolosam_1280 --no_height_filter` for new work (and `generate_masks.py --img_size 1280` for new data). The default commands below still reproduce the paper. See [REPRODUCIBILITY.md](REPRODUCIBILITY.md) for the details, the recommended commands and the effect of each fix.
@@ -121,7 +121,7 @@ You can also run `render.py` and `metrics.py` with the same input arguments to e
 <details>
 <summary><b>Step 2 (Optional).</b> Generate the 2D masks yourself, or use your own (click to expand)</summary>
 
-The wheat head bounding boxes (YOLOv5) and 2D segmentations (SAM) are already provided in our dataset (`yolosam.zip`). To generate them yourself, e.g. for new data, download the wheat head detection weights (`weights/wheat_head_detection_model.pt` of our [data release](http://hdl.handle.net/20.500.11850/807753), from the [winning solution](https://github.com/ksnxr/GWC_solution) of the Global Wheat Head Detection Challenge 2021) and the [SAM ViT-H checkpoint](https://dl.fbaipublicfiles.com/segment_anything/sam_vit_h_4b8939.pth) into `weights/`, then run:
+The wheat head bounding boxes (YOLOv5) and 2D segmentations (SAM) are already provided in our dataset (`yolosam.zip`). To generate them yourself, e.g. for new data, download the wheat head detection weights (`weights/wheat_head_detection_model.pt` of our [data release](https://doi.org/10.3929/ethz-c-000807753), from the [winning solution](https://github.com/ksnxr/GWC_solution) of the Global Wheat Head Detection Challenge 2021) and the [SAM ViT-H checkpoint](https://dl.fbaipublicfiles.com/segment_anything/sam_vit_h_4b8939.pth) into `weights/`, then run:
 ```
 python scripts/generate_masks.py -s <dataset_path> [<dataset_path> ...]
 ```
