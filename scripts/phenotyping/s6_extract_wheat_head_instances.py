@@ -14,7 +14,10 @@ BBOXES_RELATIVE_PATH = "results/gs_traits_and_bboxes"
 # Parameters
 USE_OBB = True  # Process oriented bounding boxes?
 USE_AABB = False  # Process axis-aligned bounding boxes? (set one or both to True as needed)
-BBOX_BUFFER = [0.01, 0.01, 0.01]  # Buffer (in same units as your point cloud) to expand each bbox
+BBOX_BUFFER = [0.01, 0.01, 0.01]  # Buffer (in same units as your point cloud) to expand each bbox. The paper used
+# [0.045, 0.01, 0.01]: 4.5 cm along the head's length (the first, longest axis of the oriented box), so a longer
+# laser-scan head isn't trimmed to the 3DGS length; 1 cm on the other axes for registration errors
+# (s0_run_all.py --bbox_buffer 0.045 0.01 0.01)
 PT_NR_THRESHOLD = 2500  # Threshold passed to points_in_bbox_wrapper
 
 

@@ -27,7 +27,7 @@ from s2_transformations_apply import main as apply_transformations
 from s3_transform_from_gscs_to_pcs import main as correct_wheat3dgs_cs
 from s4_trim_point_clouds_by_proximity import main as trim_by_proximity
 from s5_wheatheadmorphology import main as get_wheathead_morphology, DEFAULT_CFG
-from s6_extract_wheat_head_instances import main as get_wheat_heads
+from s6_extract_wheat_head_instances import main as get_wheat_heads, BBOX_BUFFER
 from s7_assign_genotype import main as assign_genotype
 from s8_combine_plot_files import main as combine_per_plot_csvs
 from s9_compute_traits_statistics import main as compute_traits_statistics
@@ -49,11 +49,16 @@ def parse_args():
     parser.add_argument("--date", default="20240717", help="acquisition date YYYYMMDD: reads <data_dir>/02_point_clouds/<date> and 00_raw/<date>")
     parser.add_argument("--seed", type=int, default=0, help="seed of the random subsampling in step 5")
     parser.add_argument("--min_points", type=int, default=50, help="step 5 skips heads with fewer points")
+    parser.add_argument("--bbox_buffer", type=float, nargs=3, default=None, metavar=("L", "W1", "W2"),
+                        help=f"step 6 enlarges each Wheat3DGS head's oriented box by this much (m) on each side, first value "
+                             f"along the head's length (default {BBOX_BUFFER}); the paper used 0.045 0.01 0.01")
     args = parser.parse_args()
     if args.heads_in_pcs and args.icp_dir:
         parser.error("--icp_dir needs heads in LV95, not --heads_in_pcs")
-    if args.paper_heads_dir and (args.icp_dir or args.heads_in_pcs):
-        parser.error("--icp_dir and --heads_in_pcs only apply to --heads_dir (--paper_heads_dir is in PCS)")
+    if args.paper_heads_dir and (args.icp_dir or args.heads_in_pcs or args.bbox_buffer):
+        parser.error("--icp_dir, --heads_in_pcs and --bbox_buffer only apply to --heads_dir (--paper_heads_dir is in PCS, already cut)")
+    if args.bbox_buffer is None:
+        args.bbox_buffer = BBOX_BUFFER
     return args
 
 
@@ -113,12 +118,12 @@ def main():
         # TLS
         print("6) Get wheat head instances from TLS point clouds")
         get_wheat_heads(data_relative_path=str(results / "tls_point_clouds_in_pcs_trimmed"),
-                        output_relative_path=tls_heads, bboxes_relative_path=gs_bboxes)
+                        output_relative_path=tls_heads, bboxes_relative_path=gs_bboxes, bbox_buffer=args.bbox_buffer)
 
         # MVS
         print("6) Get wheat head instances from MVS point clouds")
         get_wheat_heads(data_relative_path=str(results / "mvs_point_clouds_in_pcs_trimmed"),
-                        output_relative_path=mvs_heads, bboxes_relative_path=gs_bboxes)
+                        output_relative_path=mvs_heads, bboxes_relative_path=gs_bboxes, bbox_buffer=args.bbox_buffer)
 
     # 5b) Estimate wheat head morphology for TLS and MVS point clouds:
     # TLS
