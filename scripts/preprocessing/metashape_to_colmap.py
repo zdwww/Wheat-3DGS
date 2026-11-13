@@ -81,6 +81,66 @@ def add_marker_pixels(chunk, path):
     print(f"Added {added} marker pixels from {path} ({skipped} rows of cameras not in the project skipped)")
 
 
+def p1p2_swapped_by_export(version):
+    """True for Metashape < 2.3.0, whose COLMAP export writes P1/P2 into p1/p2 unchanged. Agisoft fixed this in 2.3.0
+    (forum, 16 Dec 2025: https://www.agisoft.com/forum/index.php?topic=17434.msg74607#msg74607, "already included to
+    2.3.0 build 21778 pre-release"). Metashape.app.version has no build number, so 2.3.0 pre-releases before build
+    21778 count as fixed."""
+    return tuple(int(v) for v in version.split(".")[:2]) < (2, 3)
+
+
+P1P2_NOTE = "# p1 and p2 swapped after the Metashape export (metashape_to_colmap.py): now in the OpenCV/COLMAP convention"
+VERSION_NOTE = "# exported with Metashape "  # + version; written into distorted/sparse/0/cameras.txt by every export
+
+
+def exported_version(lines):
+    """Metashape version from the VERSION_NOTE line of a cameras.txt (list of lines), or None if it has none."""
+    return next((line[len(VERSION_NOTE):].strip() for line in lines if line.startswith(VERSION_NOTE)), None)
+
+
+def mark_export_version(cameras_txt, metashape_version):
+    """Adds the VERSION_NOTE line before the first camera of a cameras.txt that has none. On exports of Metashape >= 2.3
+    (p1/p2 already in the OpenCV convention) this is what stops fix_distorted_p1p2 from swapping them."""
+    with open(cameras_txt) as f:
+        lines = f.read().split("\n")
+    if exported_version(lines) is None:
+        k = next((i for i, line in enumerate(lines) if not line.startswith("#")), 0)
+        lines[k:k] = [VERSION_NOTE + metashape_version]
+        with open(cameras_txt, "w") as f:
+            f.write("\n".join(lines))
+
+
+def fix_distorted_p1p2(cameras_txt, dry_run=False, metashape_version=None):
+    """Metashape (seen with 2.2.1) writes its P1, P2 unchanged into the p1, p2 slots of the OPENCV / FULL_OPENCV model
+    of the distorted COLMAP export. The conventions differ: Agisoft P1 multiplies (r^2 + 2x^2), which is OpenCV's p2.
+    So p1 and p2 are swapped here, once: a comment line in the file marks it as done (keep P1P2_NOTE unchanged, files
+    are recognised by it); metashape_version, if given, goes on a second comment line (VERSION_NOTE). Returns the
+    number of cameras changed (0 if the file was already fixed, was exported by Metashape >= 2.3 according to its
+    VERSION_NOTE line, or has no OPENCV / FULL_OPENCV camera)."""
+    with open(cameras_txt) as f:
+        lines = f.read().split("\n")
+    if any(line.strip() == P1P2_NOTE for line in lines):
+        return 0
+    version = exported_version(lines)
+    if version is not None and not p1p2_swapped_by_export(version):
+        return 0
+    n = 0
+    for i, line in enumerate(lines):
+        t = line.split()
+        if line.startswith("#") or len(t) < 12 or t[1] not in ("OPENCV", "FULL_OPENCV"):
+            continue
+        # CAMERA_ID MODEL WIDTH HEIGHT fx fy cx cy k1 k2 p1 p2 [k3 k4 k5 k6]
+        t[10], t[11] = t[11], t[10]
+        lines[i] = " ".join(t)
+        n += 1
+    if n and not dry_run:
+        k = next((i for i, line in enumerate(lines) if not line.startswith("#")), 0)
+        lines[k:k] = [P1P2_NOTE] + ([VERSION_NOTE + metashape_version] if metashape_version else [])
+        with open(cameras_txt, "w") as f:
+            f.write("\n".join(lines))
+    return n
+
+
 def marker_labels(markers_path):
     """Labels in a marker coordinates file"""
     with open(markers_path) as f:
@@ -196,5 +256,19 @@ if __name__ == "__main__":
             binary=False,
             save_markers=False,
         )
+    # K4 and B2 have no place in FULL_OPENCV: Metashape then refits the model and the file is not usable
+    bad = [s.label for s in chunk.sensors if s.calibration.k4 != 0 or s.calibration.b2 != 0]
+    if bad:
+        print(f"WARNING: sensors with K4 or B2 != 0 ({bad}): the distorted COLMAP model is an approximation")
+    distorted_cameras = os.path.join(args.out, "distorted", "sparse", "0", "cameras.txt")
+    if p1p2_swapped_by_export(Metashape.app.version):
+        n_fixed = fix_distorted_p1p2(distorted_cameras, metashape_version=Metashape.app.version)
+        print(f"distorted model: p1/p2 swapped to the OpenCV convention for {n_fixed} cameras")
+    else:
+        # 2.3.0 writes exactly what 2.2.1 + fix_distorted_p1p2 writes (checked on two FIP plots, 13 sensors each);
+        # the version line tells later tools not to swap
+        mark_export_version(distorted_cameras, Metashape.app.version)
+        print(f"Metashape {Metashape.app.version}: distorted model written as exported (p1/p2 order fixed by Agisoft "
+              "in 2.3.0)")
     n = export_marker_projections(chunk, os.path.join(args.out, "distorted", "marker_projections.csv"))
     print(f"Exported COLMAP ({args.crs}) to {args.out}, {n} marker projections")
