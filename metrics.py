@@ -11,6 +11,7 @@
 
 from pathlib import Path
 import os
+import sys
 from PIL import Image
 import torch
 import torchvision.transforms.functional as tf
@@ -41,6 +42,7 @@ def evaluate(model_paths):
     full_dict_polytopeonly = {}
     per_view_dict_polytopeonly = {}
     print("")
+    failed = []
 
     for scene_dir in model_paths:
         try:
@@ -93,6 +95,8 @@ def evaluate(model_paths):
         except Exception:
             traceback.print_exc()
             print("Unable to compute metrics for model", scene_dir)
+            failed.append(scene_dir)
+    return failed
 
 if __name__ == "__main__":
     device = torch.device("cuda:0")
@@ -102,4 +106,5 @@ if __name__ == "__main__":
     parser = ArgumentParser(description="Training script parameters")
     parser.add_argument('--model_paths', '-m', required=True, nargs="+", type=str, default=[])
     args = parser.parse_args()
-    evaluate(args.model_paths)
+    # a failed scene (e.g. out of GPU memory on large images) must not look like success to a calling script
+    sys.exit(1 if evaluate(args.model_paths) else 0)
